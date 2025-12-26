@@ -16709,76 +16709,372 @@ function resetEmployeeAdvancedFilters() {
 // ========================================
 
 function exportEmployeeToPDF() {
-    if (!employeeComparisonData) {
-        alert('Generate a report first');
+    // LITE VERSION: Simplified 3-page narrative report
+    exportEmployeeToPDF_LITE();
+}
+
+function exportEmployeeToPDF_LITE() {
+    if (!employeePerformancesGlobal || employeePerformancesGlobal.length === 0) {
+        alert('No employee data available. Please load data first.');
         return;
     }
 
     // Check if jsPDF is available
     if (typeof window.jspdf === 'undefined') {
-        alert('PDF library not loaded. Using CSV export instead.');
-        exportEmployeeToCSV();
+        alert('PDF library not loaded. Please try again.');
         return;
     }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    // Helper function to clean text (no emojis for PDF compatibility)
-    function cleanText(text) {
-        if (!text) return '';
-        return String(text)
-            .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
+    // Get current data
+    const employees = [...employeePerformancesGlobal];
+    const periods = selectedEmployeePeriods ? [...selectedEmployeePeriods].sort() : [];
+    const now = new Date();
 
-    // CAPTURE CURRENT UI STATE (ranking mode + filters)
-    const uiContext = {
-        rankingMode: employeeRankingMode || 'performanceIndex',
-        filters: {
-            periods: selectedEmployeePeriods ? [...selectedEmployeePeriods] : [],
-            shops: selectedEmployeeShops && selectedEmployeeShops.length > 0 ? [...selectedEmployeeShops] : ['all'],
-            activeOnly: showOnlyActiveEmployees || false
-        },
-        generatedDate: new Date().toLocaleString('it-IT')
+    // Sort by fairScore for rankings
+    employees.sort((a, b) => (b.fairScore || 0) - (a.fairScore || 0));
+
+    // Calculate team metrics
+    const teamMetrics = {
+        totalSales: employees.reduce((sum, e) => sum + e.totalSales, 0),
+        avgSales: employees.reduce((sum, e) => sum + e.totalSales, 0) / employees.length,
+        totalEmployees: employees.length,
+        avgTicket: employees.reduce((sum, e) => sum + (e.avgTicket || 0), 0) / employees.length,
+        avgUPT: employees.reduce((sum, e) => sum + (e.upt || 0), 0) / employees.length
     };
 
-    // Aggregate and enrich employee data
-    const reportData = aggregateEmployeeReportData();
-    const analytics = calculateEmployeeAnalytics(reportData);
+    // Rating distribution
+    const ratingDist = {
+        A: employees.filter(e => (e.fairScore || 0) >= 75).length,
+        B: employees.filter(e => (e.fairScore || 0) >= 55 && (e.fairScore || 0) < 75).length,
+        C: employees.filter(e => (e.fairScore || 0) >= 40 && (e.fairScore || 0) < 55).length,
+        D: employees.filter(e => (e.fairScore || 0) < 40).length
+    };
 
-    // Generate 6 pages (now with UI context)
-    generatePage1_ExecutiveSummary(doc, reportData, analytics, cleanText, uiContext);
-    doc.addPage();
-    generatePage2_HRIntelligence(doc, reportData, analytics, cleanText, uiContext);
-    doc.addPage();
-    generatePage3_PerformanceTrends(doc, reportData, analytics, cleanText, uiContext);
-    doc.addPage();
-    generatePage4_OperationalExcellence(doc, reportData, analytics, cleanText, uiContext);
-    doc.addPage();
-    generatePage5_PredictiveInsights(doc, reportData, analytics, cleanText, uiContext);
-    doc.addPage();
-    generatePage6_ActionPlan(doc, reportData, analytics, cleanText, uiContext);
+    // Top & Bottom performers
+    const top3 = employees.slice(0, 3);
+    const bottom3 = employees.slice(-3).reverse();
 
-    // Save PDF with ranking mode in filename
-    const modeLabel = {
-        absolute: 'Absolute',
-        efficiency: 'Efficiency',
-        performanceIndex: 'PerfIndex',
-        fairScore: 'EquityScore'
-    }[uiContext.rankingMode] || 'Report';
-    const filename = `Employee_${modeLabel}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+    // ============================================================================
+    // PAGE 1: EXECUTIVE SUMMARY (Narrative Style)
+    // ============================================================================
+    generateLitePage1_ExecutiveSummary(doc, employees, teamMetrics, ratingDist, top3, bottom3, periods);
+
+    // ============================================================================
+    // PAGE 2: TEAM PERFORMANCE OVERVIEW
+    // ============================================================================
+    doc.addPage();
+    generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods);
+
+    // ============================================================================
+    // PAGE 3: ACTION PLAN & RECOMMENDATIONS
+    // ============================================================================
+    doc.addPage();
+    generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3);
+
+    // Save PDF
+    const filename = `Team_Performance_Report_LITE_${now.toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
 
     // Success message
     setTimeout(() => {
-        alert(`Employee Performance Intelligence Report generated successfully!\n\nFile: ${filename}\nRanking Mode: ${uiContext.rankingMode}\nPages: 6\nEmployees: ${reportData.employees.length}\nTotal Sales: EUR ${reportData.totalSales.toLocaleString('it-IT')}`);
+        alert(`Report PDF generato con successo!\n\nFile: ${filename}\nPagine: 3\nDipendenti: ${employees.length}\nFatturato Totale: €${teamMetrics.totalSales.toLocaleString('it-IT')}`);
     }, 500);
 }
 
+// ============================================================================
+// LITE PDF PAGE GENERATORS (Narrative Style)
+// ============================================================================
+
+function generateLitePage1_ExecutiveSummary(doc, employees, teamMetrics, ratingDist, top3, bottom3, periods) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Header with branding
+    doc.setFillColor(52, 152, 219); // Blue
+    doc.rect(0, 0, pageWidth, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Team Performance Report', pageWidth / 2, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Periodo: ${periods[0]} - ${periods[periods.length - 1]}`, pageWidth / 2, 23, { align: 'center' });
+
+    y = 40;
+    doc.setTextColor(44, 62, 80);
+
+    // Executive Summary Title
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('Executive Summary', 14, y);
+    y += 10;
+
+    // Narrative Overview
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    const narrative = `Il team ha registrato un fatturato totale di EUR ${teamMetrics.totalSales.toLocaleString('it-IT')} distribuito su ${teamMetrics.totalEmployees} dipendenti attivi in ${periods.length} periodi. La performance media del team si attesta a EUR ${teamMetrics.avgSales.toLocaleString('it-IT')} per dipendente, con uno scontrino medio di EUR ${teamMetrics.avgTicket.toFixed(2)} e ${teamMetrics.avgUPT.toFixed(2)} pezzi per vendita.`;
+
+    const splitNarrative = doc.splitTextToSize(narrative, pageWidth - 28);
+    doc.text(splitNarrative, 14, y);
+    y += splitNarrative.length * 5 + 10;
+
+    // Rating Distribution
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Distribuzione Performance', 14, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+
+    // A Rating - Green
+    doc.setFillColor(39, 174, 96);
+    doc.rect(14, y, 40, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`A (Top)`, 16, y + 6);
+    doc.setTextColor(44, 62, 80);
+    doc.text(`: ${ratingDist.A} dipendenti (${(ratingDist.A / teamMetrics.totalEmployees * 100).toFixed(0)}%)`, 56, y + 6);
+    y += 10;
+
+    // B Rating - Blue
+    doc.setFillColor(52, 152, 219);
+    doc.rect(14, y, 40, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`B (Strong)`, 16, y + 6);
+    doc.setTextColor(44, 62, 80);
+    doc.text(`: ${ratingDist.B} dipendenti (${(ratingDist.B / teamMetrics.totalEmployees * 100).toFixed(0)}%)`, 56, y + 6);
+    y += 10;
+
+    // C Rating - Orange
+    doc.setFillColor(243, 156, 18);
+    doc.rect(14, y, 40, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`C (Needs Help)`, 16, y + 6);
+    doc.setTextColor(44, 62, 80);
+    doc.text(`: ${ratingDist.C} dipendenti (${(ratingDist.C / teamMetrics.totalEmployees * 100).toFixed(0)}%)`, 56, y + 6);
+    y += 10;
+
+    // D Rating - Red
+    doc.setFillColor(231, 76, 60);
+    doc.rect(14, y, 40, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(`D (Critical)`, 16, y + 6);
+    doc.setTextColor(44, 62, 80);
+    doc.text(`: ${ratingDist.D} dipendenti (${(ratingDist.D / teamMetrics.totalEmployees * 100).toFixed(0)}%)`, 56, y + 6);
+    y += 15;
+
+    // Top Performers Section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Top 3 Performers', 14, y);
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    top3.forEach((emp, i) => {
+        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+        const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+        const narrative = `${i + 1}. ${emp.employee} - Rating ${rating} (${emp.fairScore.toFixed(0)}/100) - EUR ${emp.totalSales.toLocaleString('it-IT')} - Trend: ${growth}`;
+        const split = doc.splitTextToSize(narrative, pageWidth - 28);
+        doc.text(split, 14, y);
+        y += split.length * 4 + 2;
+    });
+    y += 5;
+
+    // Needs Attention Section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Richiedono Attenzione', 14, y);
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    bottom3.forEach((emp, i) => {
+        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+        const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+        const narrative = `${i + 1}. ${emp.employee} - Rating ${rating} (${emp.fairScore.toFixed(0)}/100) - EUR ${emp.totalSales.toLocaleString('it-IT')} - Trend: ${growth}`;
+        const split = doc.splitTextToSize(narrative, pageWidth - 28);
+        doc.text(split, 14, y);
+        y += split.length * 4 + 2;
+    });
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
+    doc.text('Pagina 1 di 3', pageWidth - 14, 285, { align: 'right' });
+}
+
+function generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('Team Performance Overview', 14, y);
+    y += 10;
+
+    // Table using autoTable
+    const tableData = employees.map(emp => {
+        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+        const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+        return [
+            emp.employee,
+            rating,
+            emp.fairScore.toFixed(0),
+            `EUR ${emp.totalSales.toLocaleString('it-IT', { minimumFractionDigits: 0 })}`,
+            growth,
+            `EUR ${emp.avgTicket.toFixed(2)}`,
+            emp.upt.toFixed(2)
+        ];
+    });
+
+    doc.autoTable({
+        startY: y,
+        head: [['Nome', 'Rating', 'Score', 'Fatturato', 'Trend', 'Avg Ticket', 'UPT']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: {
+            fillColor: [52, 152, 219],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9
+        },
+        bodyStyles: {
+            fontSize: 8,
+            textColor: [44, 62, 80]
+        },
+        columnStyles: {
+            0: { cellWidth: 40 },
+            1: { cellWidth: 15, halign: 'center' },
+            2: { cellWidth: 15, halign: 'center' },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 20, halign: 'center' },
+            5: { cellWidth: 25, halign: 'right' },
+            6: { cellWidth: 20, halign: 'center' }
+        },
+        alternateRowStyles: {
+            fillColor: [248, 249, 250]
+        },
+        margin: { left: 14, right: 14 }
+    });
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
+    doc.text('Pagina 2 di 3', pageWidth - 14, 285, { align: 'right' });
+}
+
+function generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('Action Plan & Raccomandazioni', 14, y);
+    y += 10;
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+
+    // Top Performers Actions
+    doc.setFont(undefined, 'bold');
+    doc.text(`Rating A (${ratingDist.A} dipendenti) - Top Performers:`, 14, y);
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.text('- Riconoscere pubblicamente i risultati raggiunti', 14, y);
+    y += 5;
+    doc.text('- Coinvolgere in attivita di mentoring per dipendenti junior', 14, y);
+    y += 5;
+    doc.text('- Valutare opportunita di crescita e responsabilita aggiuntive', 14, y);
+    y += 10;
+
+    // Strong Performers Actions
+    doc.setFont(undefined, 'bold');
+    doc.text(`Rating B (${ratingDist.B} dipendenti) - Strong Performers:`, 14, y);
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.text('- Mantenere motivazione attraverso feedback positivo regolare', 14, y);
+    y += 5;
+    doc.text('- Identificare aree specifiche per miglioramento verso rating A', 14, y);
+    y += 5;
+    doc.text('- Fornire training su tecniche avanzate di vendita', 14, y);
+    y += 10;
+
+    // Needs Help Actions
+    doc.setFont(undefined, 'bold');
+    doc.text(`Rating C (${ratingDist.C} dipendenti) - Needs Help:`, 14, y);
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.text('- Schedulare 1-on-1 settimanali per monitoraggio e supporto', 14, y);
+    y += 5;
+    doc.text('- Assegnare mentor dal gruppo rating A per coaching', 14, y);
+    y += 5;
+    doc.text('- Piano di formazione intensivo su prodotto e tecniche vendita', 14, y);
+    y += 10;
+
+    // Critical Actions
+    doc.setFont(undefined, 'bold');
+    doc.text(`Rating D (${ratingDist.D} dipendenti) - Critical:`, 14, y);
+    y += 6;
+    doc.setFont(undefined, 'normal');
+    doc.text('- Intervento immediato: colloquio HR e analisi cause', 14, y);
+    y += 5;
+    doc.text('- Piano di miglioramento a 30 giorni con obiettivi misurabili', 14, y);
+    y += 5;
+    doc.text('- Valutare ri-assegnazione ruolo o supporto psicologico', 14, y);
+    y += 15;
+
+    // Immediate Actions Section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Azioni Immediate (Prossimi 7 Giorni)', 14, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text('1. Celebrare i successi dei top performer in team meeting', 14, y);
+    y += 6;
+    doc.text(`2. Schedulare 1-on-1 con dipendenti rating C e D (${ratingDist.C + ratingDist.D} persone)`, 14, y);
+    y += 6;
+    doc.text('3. Creare piano formazione personalizzato per chi ne ha bisogno', 14, y);
+    y += 6;
+    doc.text('4. Assegnare mentor per supporto peer-to-peer', 14, y);
+    y += 15;
+
+    // Timeline Section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Timeline Prossimi 30 Giorni', 14, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text('Settimana 1: Colloqui individuali + analisi gap performance', 14, y);
+    y += 6;
+    doc.text('Settimana 2: Avvio programmi formazione e mentoring', 14, y);
+    y += 6;
+    doc.text('Settimana 3: Monitoraggio progresso + feedback intermedio', 14, y);
+    y += 6;
+    doc.text('Settimana 4: Review finale + decisioni su azioni future', 14, y);
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
+    doc.text('Pagina 3 di 3', pageWidth - 14, 285, { align: 'right' });
+}
+
 // ====================================
-// DATA AGGREGATION FUNCTIONS
+// DATA AGGREGATION FUNCTIONS (OLD PRO VERSION - Keep for compatibility)
 // ====================================
 
 function aggregateEmployeeReportData() {
