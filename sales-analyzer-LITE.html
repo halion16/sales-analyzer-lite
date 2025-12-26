@@ -14265,12 +14265,18 @@ function generateNarrativeDashboard(employees, teamMetrics) {
 
     // Categorize employees by rating
     const topPerformers = employees.filter(e => e.fairScore >= 75);
-    const improving = employees.filter(e => e.fairScore >= 55 && e.fairScore < 75 && (e.growth || 0) > 0);
+    const improving = employees.filter(e => e.fairScore >= 55 && e.fairScore < 75 && e.growth != null && e.growth > 5);
     const needsAttention = employees.filter(e => e.fairScore < 55);
     const critical = employees.filter(e => e.fairScore < 40);
 
     // Identify declining performers (>= B rating but negative growth)
-    const declining = employees.filter(e => e.fairScore >= 55 && (e.growth || 0) < -10);
+    const declining = employees.filter(e => e.fairScore >= 55 && e.growth != null && e.growth < -10);
+
+    // If no growth data, use vsTeam metric for "improving" category
+    const improvingByPosition = employees.filter(e => {
+        const vsTeam = ((e.totalSales - avgSales) / avgSales * 100);
+        return e.fairScore >= 55 && e.fairScore < 75 && e.growth == null && vsTeam > 10;
+    });
 
     // New hires (< 3 months)
     const newHires = employees.filter(e => e.cohort && e.cohort.symbol === 'L1');
@@ -14285,38 +14291,64 @@ function generateNarrativeDashboard(employees, teamMetrics) {
     const executiveSummaries = employees.map(emp => {
         let summary = '';
         const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
-        const growth = emp.growth || 0;
+        const growth = emp.growth != null ? emp.growth : null; // FIX: Don't convert null to 0
+        const hasGrowthData = growth !== null;
         const vsTeam = ((emp.totalSales - avgSales) / avgSales * 100).toFixed(0);
+        const salesRank = employees.filter(e => e.totalSales > emp.totalSales).length + 1;
+        const totalEmployees = employees.length;
 
+        // IMPROVED LOGIC: Use multiple metrics, handle missing growth data
         if (rating === 'A') {
-            if (growth > 20) {
+            if (hasGrowthData && growth > 20) {
                 summary = `Top performer in forte crescita (+${growth.toFixed(0)}%), candidato per mentoring team`;
-            } else if (growth > 0) {
-                summary = `Top performer stabile, mantiene eccellenti performance (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+            } else if (hasGrowthData && growth > 0) {
+                summary = `Top performer stabile (+${growth.toFixed(0)}% growth), mantiene eccellenti performance`;
+            } else if (hasGrowthData && growth < -10) {
+                summary = `Top performer in calo (${growth.toFixed(0)}%), verificare cause e supportare`;
+            } else if (!hasGrowthData && parseInt(vsTeam) > 20) {
+                summary = `Top performer (#${salesRank}/${totalEmployees}), molto sopra media team (+${vsTeam}%)`;
+            } else if (!hasGrowthData) {
+                summary = `Top performer, ${vsTeam > 0 ? '+' : ''}${vsTeam}% vs media team - eccellente contributo`;
             } else {
-                summary = `Top performer ma con lieve calo (${growth.toFixed(0)}%), monitorare situazione`;
+                summary = `Top performer stabile, mantiene solide performance (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
             }
         } else if (rating === 'B') {
-            if (growth > 10) {
+            if (hasGrowthData && growth > 10) {
                 summary = `Performance solida e in crescita (+${growth.toFixed(0)}%), potenziale futuro top performer`;
-            } else if (growth > 0) {
-                summary = `Performance stabile nella media, continua così (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+            } else if (hasGrowthData && growth > 0) {
+                summary = `Performance buona e stabile (+${growth.toFixed(0)}% growth), continua così`;
+            } else if (hasGrowthData && growth < -10) {
+                summary = `Performance cala (${growth.toFixed(0)}%), serve supporto entro 2 settimane`;
+            } else if (!hasGrowthData && parseInt(vsTeam) > 0) {
+                summary = `Performance sopra media team (#${salesRank}/${totalEmployees}, +${vsTeam}%), buon contributo`;
+            } else if (!hasGrowthData && parseInt(vsTeam) < -10) {
+                summary = `Performance sotto media team (${vsTeam}%), analizzare gap e supportare`;
+            } else if (!hasGrowthData) {
+                summary = `Performance in linea con media team, mantenere standard attuali`;
             } else {
-                summary = `Performance nella media ma in calo (${growth.toFixed(0)}%), serve supporto entro 2 settimane`;
+                summary = `Performance stabile nella media (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
             }
         } else if (rating === 'C') {
             if (emp.cohort && emp.cohort.symbol === 'L1') {
                 summary = `Nuovo assunto (${emp.cohort.label}), performance sotto media è normale - continuare affiancamento`;
-            } else if (growth > 0) {
+            } else if (hasGrowthData && growth > 5) {
                 summary = `In difficoltà ma mostra miglioramento (+${growth.toFixed(0)}%), intensificare coaching`;
-            } else {
+            } else if (hasGrowthData && growth < -5) {
                 summary = `Performance sotto media e in calo (${growth.toFixed(0)}%), programmare 1-on-1 urgente`;
+            } else if (!hasGrowthData) {
+                summary = `Performance sotto media (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), serve coaching`;
+            } else {
+                summary = `Performance sotto media ma stabile, necessario supporto continuo`;
             }
         } else { // D
             if (emp.cohort && emp.cohort.symbol === 'L1') {
-                summary = `Nuovo assunto con difficoltà iniziali - assegnare mentor immediato`;
+                summary = `Nuovo assunto con difficoltà iniziali - assegnare mentor esperto immediato`;
+            } else if (hasGrowthData && growth < -20) {
+                summary = `Situazione critica in rapido peggioramento (${growth.toFixed(0)}%), azione immediata necessaria`;
+            } else if (!hasGrowthData) {
+                summary = `Performance critica (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), piano di recupero urgente`;
             } else {
-                summary = `Situazione critica (${growth.toFixed(0)}% growth), azione correttiva immediata necessaria`;
+                summary = `Situazione critica, azione correttiva immediata necessaria`;
             }
         }
 
@@ -14435,7 +14467,7 @@ function generateNarrativeDashboard(employees, teamMetrics) {
                         🎯 OPPORTUNITÀ
                     </div>
                     <div style="font-size: 10px; color: #155724; line-height: 1.5;">
-                        ${topPerformers.filter(e => (e.growth || 0) > 20).length > 0 ? `
+                        ${topPerformers.filter(e => e.growth != null && e.growth > 20).length > 0 ? `
                             <div style="background: white; border-left: 3px solid #28a745; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
                                 <strong>⭐ ${topPerformers.filter(e => e.growth > 20).length} top performer in forte crescita</strong>
                                 <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
@@ -14446,17 +14478,43 @@ function generateNarrativeDashboard(employees, teamMetrics) {
                                     `).join('')}
                                 </ul>
                             </div>
+                        ` : topPerformers.length > 0 ? `
+                            <div style="background: white; border-left: 3px solid #28a745; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>⭐ ${topPerformers.length} top performer</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${topPerformers.slice(0, 2).map(e => {
+                                        const vsTeam = ((e.totalSales - avgSales) / avgSales * 100).toFixed(0);
+                                        return `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: ${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team → Riconoscere eccellenza
+                                        </li>
+                                    `}).join('')}
+                                </ul>
+                            </div>
                         ` : ''}
 
                         ${improving.length > 0 ? `
                             <div style="background: white; border-left: 3px solid #17a2b8; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
-                                <strong>📈 ${improving.length} dipendente${improving.length > 1 ? 'i' : ''} in miglioramento</strong>
+                                <strong>📈 ${improving.length} dipendente${improving.length > 1 ? 'i' : ''} in miglioramento (growth)</strong>
                                 <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
                                     ${improving.slice(0, 2).map(e => `
                                         <li style="margin-bottom: 2px;">
                                             <strong>${e.employee}</strong>: +${e.growth.toFixed(0)}% → Potenziale futuro top performer
                                         </li>
                                     `).join('')}
+                                </ul>
+                            </div>
+                        ` : improvingByPosition.length > 0 ? `
+                            <div style="background: white; border-left: 3px solid #17a2b8; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>📈 ${improvingByPosition.length} dipendente${improvingByPosition.length > 1 ? 'i' : ''} sopra media team</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${improvingByPosition.slice(0, 2).map(e => {
+                                        const vsTeam = ((e.totalSales - avgSales) / avgSales * 100).toFixed(0);
+                                        return `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: +${vsTeam}% vs team → Performance solida
+                                        </li>
+                                    `}).join('')}
                                 </ul>
                             </div>
                         ` : ''}
