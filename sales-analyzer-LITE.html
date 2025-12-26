@@ -16996,15 +16996,16 @@ function generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods) {
             // Employee rows
             groupedByRating[rating].forEach(emp => {
                 const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
-                const growthSymbol = emp.growth != null ? (emp.growth > 0 ? '↑' : emp.growth < 0 ? '↓' : '→') : '-';
+                // Use ASCII characters instead of Unicode symbols for PDF compatibility
+                const growthSymbol = emp.growth != null ? (emp.growth > 0 ? '^' : emp.growth < 0 ? 'v' : '-') : '-';
 
                 tableData.push([
                     emp.employee,
                     rating,
                     emp.fairScore.toFixed(0),
-                    `€${emp.totalSales.toLocaleString('it-IT', { minimumFractionDigits: 0 })}`,
+                    `${emp.totalSales.toLocaleString('it-IT', { minimumFractionDigits: 0 })}`,
                     `${growthSymbol} ${growth}`,
-                    `€${emp.avgTicket.toFixed(2)}`,
+                    `${emp.avgTicket.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     emp.upt.toFixed(2)
                 ]);
             });
@@ -17256,8 +17257,9 @@ function generateLitePage4_EmployeeProfiles(doc, top3, bottom3, teamMetrics, per
 
         // Tenure & Type
         const expLabel = emp.cohort ? emp.cohort.label : 'Unknown';
-        const typeLabel = emp.weeklyHours >= 35 ? 'Full-time' : 'Part-time';
-        doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${emp.weeklyHours}h/settimana)`, 18, y);
+        const weeklyHours = emp.weeklyHours || emp.normalizedMetrics?.weeklyHours || 40;
+        const typeLabel = weeklyHours >= 35 ? 'Full-time' : 'Part-time';
+        doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${weeklyHours}h/settimana)`, 18, y);
         y += 4;
 
         // Insights
@@ -17308,8 +17310,9 @@ function generateLitePage4_EmployeeProfiles(doc, top3, bottom3, teamMetrics, per
 
             // Tenure & Type
             const expLabel = emp.cohort ? emp.cohort.label : 'Unknown';
-            const typeLabel = emp.weeklyHours >= 35 ? 'Full-time' : 'Part-time';
-            doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${emp.weeklyHours}h/settimana)`, 18, y);
+            const weeklyHours = emp.weeklyHours || emp.normalizedMetrics?.weeklyHours || 40;
+            const typeLabel = weeklyHours >= 35 ? 'Full-time' : 'Part-time';
+            doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${weeklyHours}h/settimana)`, 18, y);
             y += 4;
 
             // Action Items
