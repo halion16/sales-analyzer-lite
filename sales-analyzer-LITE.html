@@ -14936,8 +14936,8 @@ function renderEmployeeTableView() {
                             <th onclick="sortEmployeeTable('avgTicket')" style="padding: 12px 8px; text-align: right; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none;" title="Average transaction value">
                                 🎫 Avg Ticket ${employeeSortColumn === 'avgTicket' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
                             </th>
-                            <th style="padding: 12px 8px; text-align: center; border: 1px solid #34495e; font-weight: 600;" title="Contract type: Full-time or Part-time">
-                                👔 Type
+                            <th onclick="sortEmployeeTable('upt')" style="padding: 12px 8px; text-align: center; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none;" title="Units Per Transaction (Items/Sale)">
+                                🛍️ UPT ${employeeSortColumn === 'upt' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
                             </th>
                             <th onclick="sortEmployeeTable('cohort')" style="padding: 12px 8px; text-align: center; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none;" title="Experience level based on tenure">
                                 📚 Experience ${employeeSortColumn === 'cohort' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
@@ -15092,10 +15092,8 @@ function renderEmployeeTableView() {
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 600; color: #2c3e50;">
                     €${emp.avgTicket.toFixed(2)}
                 </td>
-                <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
-                    <span style="display: inline-block; padding: 3px 8px; background: ${emp.weeklyHours >= 35 ? '#d1ecf1' : '#fff3cd'}; color: ${emp.weeklyHours >= 35 ? '#0c5460' : '#856404'}; border-radius: 3px; font-size: 11px; font-weight: 600;">
-                        ${typeIcon} ${typeBadge}
-                    </span>
+                <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center; font-weight: 600; color: #2c3e50;">
+                    ${emp.upt ? emp.upt.toFixed(2) : '—'}
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
                     <div style="display: inline-block; background: ${emp.cohort.badgeColor}; color: ${emp.cohort.textColor}; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 3px;">
@@ -15122,6 +15120,7 @@ function renderEmployeeTableView() {
     // LITE VERSION: Simplified footer with 9 columns
     const teamTotalSales = employeePerformances.reduce((sum, e) => sum + e.totalSales, 0);
     const teamAvgFairScore = employeePerformances.reduce((sum, e) => sum + (e.fairScore || 0), 0) / employeePerformances.length;
+    const teamAvgUPT = totalDocuments > 0 ? totalPieces / totalDocuments : 0;
 
     html += `
                     </tbody>
@@ -15138,7 +15137,9 @@ function renderEmployeeTableView() {
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: right; font-size: 11px;">
                                 €${teamAvgTicket.toFixed(2)}
                             </td>
-                            <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center;">—</td>
+                            <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center; font-size: 11px;">
+                                ${teamAvgUPT.toFixed(2)}
+                            </td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center;">—</td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center; font-size: 10px;">
                                 ${employeePerformances.length} employees
