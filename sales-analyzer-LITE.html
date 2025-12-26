@@ -2768,6 +2768,12 @@ Dipendente con 3 mesi maternità:
                 <button onclick="openManualMatchingUI()" style="background: #e74c3c; border: 1px solid #c0392b; color: #ffffff; padding: 8px 15px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;">
                     🔗 Manual Matching
                 </button>
+                <button onclick="exportHRMappings()" style="background: #8e44ad; border: 1px solid #71368a; color: #ffffff; padding: 8px 15px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;" title="Esporta i match HR-Sales in un file JSON">
+                    💾 Export Mappings
+                </button>
+                <button onclick="importHRMappings()" style="background: #2980b9; border: 1px solid #21618c; color: #ffffff; padding: 8px 15px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;" title="Importa i match HR-Sales da un file JSON">
+                    📂 Import Mappings
+                </button>
                 <button onclick="openMatchingDiagnostics()" style="background: #16a085; border: 1px solid #138d75; color: #ffffff; padding: 8px 15px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;">
                     🔍 Diagnostica Matching
                 </button>
@@ -24213,14 +24219,121 @@ function buildAutoMatchSuggestions() {
  */
 function saveHRSalesMapping() {
     try {
-        localStorage.setItem(STORAGE_KEY_HR_SALES_MAPPING, JSON.stringify(hrSalesMapping));
-        console.log('🔗 HR-Sales Mapping saved to localStorage:', Object.keys(hrSalesMapping).length, 'mappings');
+        const mappingJSON = JSON.stringify(hrSalesMapping);
+        localStorage.setItem(STORAGE_KEY_HR_SALES_MAPPING, mappingJSON);
+
+        // Verify save worked
+        const verified = localStorage.getItem(STORAGE_KEY_HR_SALES_MAPPING);
+        if (verified !== mappingJSON) {
+            throw new Error('Verification failed: saved data does not match');
+        }
+
+        console.log('✅ HR-Sales Mapping saved to localStorage:', Object.keys(hrSalesMapping).length, 'mappings');
+        console.log('📋 Current mappings:', hrSalesMapping);
         return true;
     } catch (e) {
         console.error('❌ Failed to save HR-Sales Mapping:', e);
-        alert('Failed to save mappings to localStorage.');
+        console.error('❌ Error details:', e.name, e.message);
+
+        // Show detailed error to user
+        alert(`⚠️ ATTENZIONE: Impossibile salvare i match in localStorage!\n\n` +
+              `Errore: ${e.message}\n\n` +
+              `Causa probabile: Tracking Prevention del browser blocca localStorage.\n\n` +
+              `SOLUZIONE:\n` +
+              `1. Usa il pulsante "Export Mappings" per salvare i match manualmente\n` +
+              `2. Apri l'app da un web server locale invece di file://\n` +
+              `3. Disabilita Tracking Prevention per questo file`);
+
+        // Offer to export mappings
+        if (confirm('Vuoi esportare i match manualmente ora?')) {
+            exportHRMappings();
+        }
+
         return false;
     }
+}
+
+/**
+ * Export HR-Sales mappings to JSON file
+ */
+function exportHRMappings() {
+    const mappings = hrSalesMapping;
+    const count = Object.keys(mappings).length;
+
+    if (count === 0) {
+        alert('Nessun match da esportare.');
+        return;
+    }
+
+    // Create JSON blob
+    const json = JSON.stringify(mappings, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    // Create download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hr-sales-mappings_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log(`✅ Exported ${count} mappings to JSON file`);
+    alert(`✅ Esportati ${count} match HR-Sales.\n\nSalva questo file e usa "Import Mappings" per ripristinarli.`);
+}
+
+/**
+ * Import HR-Sales mappings from JSON file
+ */
+function importHRMappings() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const imported = JSON.parse(event.target.result);
+
+                // Validate structure
+                if (typeof imported !== 'object') {
+                    throw new Error('Invalid file format');
+                }
+
+                // Merge with existing mappings
+                const beforeCount = Object.keys(hrSalesMapping).length;
+                Object.assign(hrSalesMapping, imported);
+                const afterCount = Object.keys(hrSalesMapping).length;
+                const newCount = afterCount - beforeCount;
+
+                // Try to save to localStorage (might fail)
+                saveHRSalesMapping();
+
+                console.log(`✅ Imported ${Object.keys(imported).length} mappings (${newCount} new)`);
+                alert(`✅ Importati ${Object.keys(imported).length} match HR-Sales\n\n` +
+                      `Nuovi: ${newCount}\n` +
+                      `Totali: ${afterCount}\n\n` +
+                      `Ricarica l'analisi per applicare i match.`);
+
+                // Refresh matching summary if open
+                if (document.getElementById('matchingSummary')) {
+                    renderMatchingSummary();
+                }
+            } catch (error) {
+                console.error('❌ Import failed:', error);
+                alert(`❌ Errore nell'importazione:\n${error.message}`);
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
+    input.click();
 }
 
 /**
