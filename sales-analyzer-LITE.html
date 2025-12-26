@@ -14090,11 +14090,18 @@ function renderSparkline(periods, periodList, employeeName) {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
 
-    // Determine trend color
-    const firstVal = values[0];
-    const lastVal = values[values.length - 1];
-    const trendUp = lastVal > firstVal;
-    const strokeColor = trendUp ? '#27ae60' : lastVal < firstVal ? '#e74c3c' : '#3498db';
+    // Determine trend color using LINEAR REGRESSION (consistent with modal)
+    const n = values.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    values.forEach((y, x) => {
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    });
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const trendUp = slope > 0;
+    const strokeColor = slope > 0 ? '#27ae60' : slope < 0 ? '#e74c3c' : '#3498db';
 
     // Create tooltip text
     const tooltipText = recentPeriods.map((p, i) =>
@@ -14284,10 +14291,43 @@ function showTrendModal(employeeName) {
 function generateTrendInsights(employee, values, teamAvgs, periods) {
     const insightsDiv = document.getElementById('trendInsights');
 
-    // Calculate statistics
-    const firstVal = values[0];
-    const lastVal = values[values.length - 1];
-    const growth = firstVal > 0 ? ((lastVal - firstVal) / firstVal * 100) : 0;
+    // ============================================================================
+    // LINEAR REGRESSION GROWTH CALCULATION (More accurate - uses ALL data points)
+    // ============================================================================
+    const n = values.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
+    values.forEach((y, x) => {
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    });
+
+    // Calculate slope (m) and intercept (b) of trend line: y = mx + b
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    // Calculate growth as percentage change from trend line start to end
+    // y₀ = intercept (predicted value at x=0)
+    // y_n = slope*(n-1) + intercept (predicted value at x=n-1)
+    const trendStart = intercept;
+    const trendEnd = slope * (n - 1) + intercept;
+    const growth = trendStart > 0 ? ((trendEnd - trendStart) / trendStart * 100) : 0;
+
+    // Calculate R² (coefficient of determination) to show trend consistency
+    const yMean = sumY / n;
+    let ssTotal = 0, ssResidual = 0;
+    values.forEach((y, x) => {
+        const yPredicted = slope * x + intercept;
+        ssTotal += Math.pow(y - yMean, 2);
+        ssResidual += Math.pow(y - yPredicted, 2);
+    });
+    const rSquared = ssTotal > 0 ? 1 - (ssResidual / ssTotal) : 0;
+    const trendConsistency = (rSquared * 100).toFixed(0); // Convert to percentage
+
+    // ============================================================================
+
     const avgEmployeeSales = values.reduce((a, b) => a + b, 0) / values.length;
     const avgTeamSales = teamAvgs.reduce((a, b) => a + b, 0) / teamAvgs.length;
     const vsTeam = avgTeamSales > 0 ? ((avgEmployeeSales - avgTeamSales) / avgTeamSales * 100) : 0;
@@ -14325,10 +14365,13 @@ function generateTrendInsights(employee, values, teamAvgs, periods) {
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 11px;">
                 <!-- Trend -->
                 <div style="background: ${trendColor}15; border-left: 3px solid ${trendColor}; padding: 10px; border-radius: 3px;">
-                    <div style="color: #7f8c8d; font-size: 9px; margin-bottom: 4px; text-transform: uppercase;">Andamento</div>
+                    <div style="color: #7f8c8d; font-size: 9px; margin-bottom: 4px; text-transform: uppercase;">Andamento (Regressione Lineare)</div>
                     <div style="font-weight: 700; font-size: 13px; color: ${trendColor};">${trendIcon} ${trendLabel}</div>
                     <div style="color: #7f8c8d; font-size: 10px; margin-top: 4px;">
-                        ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% dal primo all'ultimo periodo
+                        ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% trend su ${values.length} periodi
+                    </div>
+                    <div style="color: #7f8c8d; font-size: 9px; margin-top: 2px; font-style: italic;">
+                        Consistenza: ${trendConsistency}% (R²)
                     </div>
                 </div>
 
@@ -14359,9 +14402,9 @@ function generateTrendInsights(employee, values, teamAvgs, periods) {
             <div style="background: #f8f9fa; padding: 12px; border-radius: 3px; margin-top: 12px; font-size: 11px; line-height: 1.6;">
                 <strong style="color: #2c3e50;">📝 Riepilogo:</strong>
                 <span style="color: #555;">
-                    ${employee.employee} ha registrato una ${trendLabel.toLowerCase()} con una crescita del
+                    ${employee.employee} mostra una ${trendLabel.toLowerCase()} con un trend del
                     <strong style="color: ${trendColor};">${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</strong>
-                    tra il primo e l'ultimo periodo.
+                    su ${values.length} periodi (regressione lineare, R²=${trendConsistency}%).
                     La performance media è ${vsTeam >= 0 ? 'superiore' : 'inferiore'} alla media del team del
                     <strong>${Math.abs(vsTeam).toFixed(1)}%</strong>, con
                     <strong>${periodsAboveTeam} su ${values.length} periodi</strong> sopra la media.
