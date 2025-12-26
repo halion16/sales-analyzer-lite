@@ -15099,7 +15099,7 @@ function renderEmployeeTableView() {
                     €${emp.avgTicket.toFixed(2)}
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center; font-weight: 600; color: #2c3e50;">
-                    ${emp.upt ? emp.upt.toFixed(2) : '—'}
+                    ${emp.upt ? `<span style="cursor: help; border-bottom: 1px dotted #3498db;" title="📄 Documenti: ${emp.totalTransactions || 0} | 🛍️ Pezzi: ${emp.totalQty || 0}&#10;UPT = Pezzi ÷ Documenti = ${emp.totalQty || 0} ÷ ${emp.totalTransactions || 0} = ${emp.upt.toFixed(2)}">${emp.upt.toFixed(2)}</span>` : '—'}
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
                     <div style="display: inline-block; background: ${emp.cohort.badgeColor}; color: ${emp.cohort.textColor}; font-weight: 600; font-size: 11px; padding: 4px 8px; border-radius: 3px;">
@@ -15144,7 +15144,7 @@ function renderEmployeeTableView() {
                                 €${teamAvgTicket.toFixed(2)}
                             </td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center; font-size: 11px;">
-                                ${teamAvgUPT.toFixed(2)}
+                                <span style="cursor: help; border-bottom: 1px dotted #ecf0f1;" title="📄 Documenti Team: ${totalDocuments} | 🛍️ Pezzi Team: ${totalPieces}&#10;Team UPT = ${totalPieces} ÷ ${totalDocuments} = ${teamAvgUPT.toFixed(2)}">${teamAvgUPT.toFixed(2)}</span>
                             </td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center;">—</td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center; font-size: 10px;">
