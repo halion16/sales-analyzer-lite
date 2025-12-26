@@ -16774,13 +16774,19 @@ function exportEmployeeToPDF_LITE() {
     doc.addPage();
     generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3);
 
+    // ============================================================================
+    // PAGE 4: EMPLOYEE PROFILES (Top & Bottom Performers)
+    // ============================================================================
+    doc.addPage();
+    generateLitePage4_EmployeeProfiles(doc, top3, bottom3, teamMetrics, periods);
+
     // Save PDF
     const filename = `Team_Performance_Report_LITE_${now.toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
 
     // Success message
     setTimeout(() => {
-        alert(`Report PDF generato con successo!\n\nFile: ${filename}\nPagine: 3\nDipendenti: ${employees.length}\nFatturato Totale: €${teamMetrics.totalSales.toLocaleString('it-IT')}`);
+        alert(`Report PDF generato con successo!\n\nFile: ${filename}\nPagine: 4 (Enhanced)\nDipendenti: ${employees.length}\nFatturato Totale: €${teamMetrics.totalSales.toLocaleString('it-IT')}`);
     }, 500);
 }
 
@@ -16820,6 +16826,50 @@ function generateLitePage1_ExecutiveSummary(doc, employees, teamMetrics, ratingD
     const splitNarrative = doc.splitTextToSize(narrative, pageWidth - 28);
     doc.text(splitNarrative, 14, y);
     y += splitNarrative.length * 5 + 10;
+
+    // ============================================================================
+    // KEY HIGHLIGHTS BOX
+    // ============================================================================
+    doc.setFillColor(241, 196, 15); // Yellow
+    doc.roundedRect(14, y, pageWidth - 28, 35, 2, 2, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(16, y + 2, pageWidth - 32, 31, 2, 2, 'F');
+
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('KEY HIGHLIGHTS', 20, y + 8);
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+
+    // Calculate highlights
+    const topPerformerSales = top3[0].totalSales;
+    const avgGrowth = employees.filter(e => e.growth != null).reduce((sum, e) => sum + e.growth, 0) /
+                      employees.filter(e => e.growth != null).length;
+    const positiveGrowth = employees.filter(e => e.growth != null && e.growth > 0).length;
+    const criticalCount = ratingDist.D;
+
+    doc.setTextColor(39, 174, 96); // Green
+    doc.text(`+ Top performer: ${top3[0].employee} con EUR ${topPerformerSales.toLocaleString('it-IT')}`, 20, y + 14);
+
+    doc.setTextColor(52, 152, 219); // Blue
+    const trendIcon = avgGrowth >= 0 ? '^' : 'v';
+    doc.text(`${trendIcon} Trend medio team: ${avgGrowth >= 0 ? '+' : ''}${avgGrowth.toFixed(1)}% (${positiveGrowth}/${employees.length} in crescita)`, 20, y + 20);
+
+    doc.setTextColor(243, 156, 18); // Orange
+    doc.text(`! ${ratingDist.C + ratingDist.D} dipendenti necessitano supporto (${ratingDist.C} rating C, ${criticalCount} rating D)`, 20, y + 26);
+
+    if (ratingDist.A >= employees.length * 0.3) {
+        doc.setTextColor(39, 174, 96);
+        doc.text(`* Team forte: ${((ratingDist.A / employees.length) * 100).toFixed(0)}% rating A/B!`, 20, y + 32);
+    } else if (criticalCount > 0) {
+        doc.setTextColor(231, 76, 60);
+        doc.text(`* ATTENZIONE: ${criticalCount} dipendenti in situazione critica - azione immediata richiesta`, 20, y + 32);
+    }
+
+    y += 40;
+    doc.setTextColor(44, 62, 80);
 
     // Rating Distribution
     doc.setFontSize(12);
@@ -16905,7 +16955,7 @@ function generateLitePage1_ExecutiveSummary(doc, employees, teamMetrics, ratingD
     doc.setFontSize(8);
     doc.setTextColor(127, 140, 141);
     doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
-    doc.text('Pagina 1 di 3', pageWidth - 14, 285, { align: 'right' });
+    doc.text('Pagina 1 di 4', pageWidth - 14, 285, { align: 'right' });
 }
 
 function generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods) {
@@ -16919,26 +16969,53 @@ function generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods) {
     doc.text('Team Performance Overview', 14, y);
     y += 10;
 
-    // Table using autoTable
-    const tableData = employees.map(emp => {
-        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
-        const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
-        return [
-            emp.employee,
-            rating,
-            emp.fairScore.toFixed(0),
-            `EUR ${emp.totalSales.toLocaleString('it-IT', { minimumFractionDigits: 0 })}`,
-            growth,
-            `EUR ${emp.avgTicket.toFixed(2)}`,
-            emp.upt.toFixed(2)
-        ];
+    // Group employees by rating
+    const groupedByRating = {
+        A: employees.filter(e => (e.fairScore || 0) >= 75),
+        B: employees.filter(e => (e.fairScore || 0) >= 55 && (e.fairScore || 0) < 75),
+        C: employees.filter(e => (e.fairScore || 0) >= 40 && (e.fairScore || 0) < 55),
+        D: employees.filter(e => (e.fairScore || 0) < 40)
+    };
+
+    const tableData = [];
+    const ratingColors = {
+        A: [39, 174, 96],
+        B: [52, 152, 219],
+        C: [243, 156, 18],
+        D: [231, 76, 60]
+    };
+
+    // Build table data with group headers
+    ['A', 'B', 'C', 'D'].forEach(rating => {
+        if (groupedByRating[rating].length > 0) {
+            // Group header row
+            tableData.push([
+                { content: `RATING ${rating} (${groupedByRating[rating].length} dipendenti)`, colSpan: 7, styles: { fillColor: ratingColors[rating], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'left' } }
+            ]);
+
+            // Employee rows
+            groupedByRating[rating].forEach(emp => {
+                const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+                const growthSymbol = emp.growth != null ? (emp.growth > 0 ? '↑' : emp.growth < 0 ? '↓' : '→') : '-';
+
+                tableData.push([
+                    emp.employee,
+                    rating,
+                    emp.fairScore.toFixed(0),
+                    `€${emp.totalSales.toLocaleString('it-IT', { minimumFractionDigits: 0 })}`,
+                    `${growthSymbol} ${growth}`,
+                    `€${emp.avgTicket.toFixed(2)}`,
+                    emp.upt.toFixed(2)
+                ]);
+            });
+        }
     });
 
     doc.autoTable({
         startY: y,
         head: [['Nome', 'Rating', 'Score', 'Fatturato', 'Trend', 'Avg Ticket', 'UPT']],
         body: tableData,
-        theme: 'striped',
+        theme: 'grid',
         headStyles: {
             fillColor: [52, 152, 219],
             textColor: [255, 255, 255],
@@ -16958,17 +17035,41 @@ function generateLitePage2_TeamOverview(doc, employees, teamMetrics, periods) {
             5: { cellWidth: 25, halign: 'right' },
             6: { cellWidth: 20, halign: 'center' }
         },
-        alternateRowStyles: {
-            fillColor: [248, 249, 250]
-        },
-        margin: { left: 14, right: 14 }
+        margin: { left: 14, right: 14 },
+        didParseCell: function(data) {
+            // Apply rating color to rating column
+            if (data.column.index === 1 && data.cell.raw !== 'Rating') {
+                const rating = data.cell.raw;
+                if (ratingColors[rating]) {
+                    data.cell.styles.fillColor = ratingColors[rating];
+                    data.cell.styles.textColor = [255, 255, 255];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        }
     });
+
+    // Summary box
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFillColor(236, 240, 241);
+    doc.rect(14, finalY, pageWidth - 28, 20, 'F');
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('RIEPILOGO TEAM:', 18, finalY + 6);
+
+    doc.setFont(undefined, 'normal');
+    doc.text(`Totale Fatturato: €${teamMetrics.totalSales.toLocaleString('it-IT')}`, 18, finalY + 12);
+    doc.text(`Media Dipendente: €${teamMetrics.avgSales.toLocaleString('it-IT')}`, 18, finalY + 17);
+    doc.text(`Scontrino Medio: €${teamMetrics.avgTicket.toFixed(2)}`, 100, finalY + 12);
+    doc.text(`UPT Medio: ${teamMetrics.avgUPT.toFixed(2)}`, 100, finalY + 17);
 
     // Footer
     doc.setFontSize(8);
     doc.setTextColor(127, 140, 141);
     doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
-    doc.text('Pagina 2 di 3', pageWidth - 14, 285, { align: 'right' });
+    doc.text('Pagina 2 di 4', pageWidth - 14, 285, { align: 'right' });
 }
 
 function generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3) {
@@ -17010,28 +17111,60 @@ function generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3)
     y += 10;
 
     // Needs Help Actions
+    const ratingC = employees.filter(e => (e.fairScore || 0) >= 40 && (e.fairScore || 0) < 55);
     doc.setFont(undefined, 'bold');
     doc.text(`Rating C (${ratingDist.C} dipendenti) - Needs Help:`, 14, y);
-    y += 6;
+    if (ratingC.length > 0) {
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        const namesC = ratingC.map(e => e.employee).join(', ');
+        doc.text(`Dipendenti: ${namesC}`, 14, y + 4);
+        y += 8;
+        doc.setFontSize(10);
+    } else {
+        y += 6;
+    }
     doc.setFont(undefined, 'normal');
     doc.text('- Schedulare 1-on-1 settimanali per monitoraggio e supporto', 14, y);
     y += 5;
     doc.text('- Assegnare mentor dal gruppo rating A per coaching', 14, y);
     y += 5;
     doc.text('- Piano di formazione intensivo su prodotto e tecniche vendita', 14, y);
-    y += 10;
+    y += 5;
+    doc.setFont(undefined, 'italic');
+    doc.setFontSize(9);
+    doc.text('Success metrics: +10% sales entro 60 giorni, miglioramento UPT del 15%', 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
 
     // Critical Actions
+    const ratingD = employees.filter(e => (e.fairScore || 0) < 40);
     doc.setFont(undefined, 'bold');
     doc.text(`Rating D (${ratingDist.D} dipendenti) - Critical:`, 14, y);
-    y += 6;
+    if (ratingD.length > 0) {
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        const namesD = ratingD.map(e => e.employee).join(', ');
+        doc.text(`Dipendenti: ${namesD}`, 14, y + 4);
+        y += 8;
+        doc.setFontSize(10);
+    } else {
+        y += 6;
+    }
     doc.setFont(undefined, 'normal');
     doc.text('- Intervento immediato: colloquio HR e analisi cause', 14, y);
     y += 5;
     doc.text('- Piano di miglioramento a 30 giorni con obiettivi misurabili', 14, y);
     y += 5;
     doc.text('- Valutare ri-assegnazione ruolo o supporto psicologico', 14, y);
-    y += 15;
+    y += 5;
+    doc.setFont(undefined, 'italic');
+    doc.setFontSize(9);
+    doc.text('Success metrics: Raggiungere almeno rating C (score 40+) entro 30 giorni', 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
 
     // Immediate Actions Section
     doc.setFontSize(12);
@@ -17070,7 +17203,139 @@ function generateLitePage3_ActionPlan(doc, employees, ratingDist, top3, bottom3)
     doc.setFontSize(8);
     doc.setTextColor(127, 140, 141);
     doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
-    doc.text('Pagina 3 di 3', pageWidth - 14, 285, { align: 'right' });
+    doc.text('Pagina 3 di 4', pageWidth - 14, 285, { align: 'right' });
+}
+
+// ============================================================================
+// PAGE 4: EMPLOYEE PROFILES (Top & Bottom Performers)
+// ============================================================================
+function generateLitePage4_EmployeeProfiles(doc, top3, bottom3, teamMetrics, periods) {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Header
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('Profili Dipendenti Dettagliati', 14, y);
+    y += 10;
+
+    // ============================================================================
+    // TOP PERFORMERS SECTION
+    // ============================================================================
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setFillColor(39, 174, 96);
+    doc.rect(14, y, pageWidth - 28, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOP 3 PERFORMERS', 18, y + 6);
+    y += 12;
+
+    doc.setTextColor(44, 62, 80);
+
+    top3.forEach((emp, i) => {
+        if (y > 250) return; // Skip if running out of space
+
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+        doc.text(`${i + 1}. ${emp.employee} - Rating ${rating} (${emp.fairScore.toFixed(0)}/100)`, 14, y);
+        y += 6;
+
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+
+        // Metrics
+        const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+        const vsTeam = ((emp.totalSales - teamMetrics.avgSales) / teamMetrics.avgSales * 100).toFixed(0);
+
+        doc.text(`Fatturato: EUR ${emp.totalSales.toLocaleString('it-IT')} (${vsTeam >= 0 ? '+' : ''}${vsTeam}% vs media team)`, 18, y);
+        y += 4;
+        doc.text(`Trend: ${growth} | Scontrino: EUR ${emp.avgTicket.toFixed(2)} | UPT: ${emp.upt.toFixed(2)}`, 18, y);
+        y += 4;
+
+        // Tenure & Type
+        const expLabel = emp.cohort ? emp.cohort.label : 'Unknown';
+        const typeLabel = emp.weeklyHours >= 35 ? 'Full-time' : 'Part-time';
+        doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${emp.weeklyHours}h/settimana)`, 18, y);
+        y += 4;
+
+        // Insights
+        doc.setFont(undefined, 'italic');
+        doc.setFillColor(212, 239, 223);
+        doc.rect(18, y, pageWidth - 36, 10, 'F');
+        doc.text(`Insights: Eccellente performance, ${vsTeam}% sopra media. Ideale per mentoring team.`, 20, y + 6);
+        y += 14;
+
+        doc.setFont(undefined, 'normal');
+    });
+
+    // ============================================================================
+    // BOTTOM PERFORMERS SECTION
+    // ============================================================================
+    if (y < 200) {
+        y += 5;
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setFillColor(231, 76, 60);
+        doc.rect(14, y, pageWidth - 28, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text('RICHIEDONO ATTENZIONE', 18, y + 6);
+        y += 12;
+
+        doc.setTextColor(44, 62, 80);
+
+        bottom3.forEach((emp, i) => {
+            if (y > 270) return; // Skip if running out of space
+
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+            doc.text(`${i + 1}. ${emp.employee} - Rating ${rating} (${emp.fairScore.toFixed(0)}/100)`, 14, y);
+            y += 6;
+
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'normal');
+
+            // Metrics
+            const growth = emp.growth != null ? `${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%` : 'N/A';
+            const vsTeam = ((emp.totalSales - teamMetrics.avgSales) / teamMetrics.avgSales * 100).toFixed(0);
+
+            doc.text(`Fatturato: EUR ${emp.totalSales.toLocaleString('it-IT')} (${vsTeam >= 0 ? '+' : ''}${vsTeam}% vs media team)`, 18, y);
+            y += 4;
+            doc.text(`Trend: ${growth} | Scontrino: EUR ${emp.avgTicket.toFixed(2)} | UPT: ${emp.upt.toFixed(2)}`, 18, y);
+            y += 4;
+
+            // Tenure & Type
+            const expLabel = emp.cohort ? emp.cohort.label : 'Unknown';
+            const typeLabel = emp.weeklyHours >= 35 ? 'Full-time' : 'Part-time';
+            doc.text(`Esperienza: ${expLabel} | Contratto: ${typeLabel} (${emp.weeklyHours}h/settimana)`, 18, y);
+            y += 4;
+
+            // Action Items
+            doc.setFont(undefined, 'italic');
+            doc.setFillColor(254, 226, 226);
+            doc.rect(18, y, pageWidth - 36, 10, 'F');
+            let action = '';
+            if (rating === 'D') {
+                action = `Azione: Intervento immediato - colloquio HR entro 3 giorni. Piano 30 giorni.`;
+            } else if (rating === 'C') {
+                action = `Azione: 1-on-1 settimanale, assegnare mentor. Target: +10% vendite in 60 giorni.`;
+            } else {
+                action = `Azione: Monitorare trend, fornire supporto mirato per migliorare performance.`;
+            }
+            doc.text(action, 20, y + 6);
+            y += 14;
+
+            doc.setFont(undefined, 'normal');
+        });
+    }
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 14, 285);
+    doc.text('Pagina 4 di 4', pageWidth - 14, 285, { align: 'right' });
 }
 
 // ====================================
