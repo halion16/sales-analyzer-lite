@@ -15120,7 +15120,7 @@ function renderEmployeeTableView() {
     // LITE VERSION: Simplified footer with 9 columns
     const teamTotalSales = employeePerformances.reduce((sum, e) => sum + e.totalSales, 0);
     const teamAvgFairScore = employeePerformances.reduce((sum, e) => sum + (e.fairScore || 0), 0) / employeePerformances.length;
-    const teamAvgUPT = totalDocuments > 0 ? totalPieces / totalDocuments : 0;
+    // teamAvgUPT already declared at line 14440
 
     html += `
                     </tbody>
