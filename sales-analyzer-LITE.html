@@ -14243,6 +14243,264 @@ function getGrowthTooltip(emp) {
     return 'Insufficient data for growth calculation';
 }
 
+/**
+ * ============================================
+ * NARRATIVE DASHBOARD - PHASE 1
+ * ============================================
+ * Generates actionable insights from employee data
+ *
+ * @param {Array} employees - Filtered employee performance data
+ * @param {Object} teamMetrics - Team-level aggregated metrics
+ * @returns {string} HTML for narrative dashboard
+ */
+function generateNarrativeDashboard(employees, teamMetrics) {
+    if (!employees || employees.length === 0) {
+        return '';
+    }
+
+    // Calculate team statistics
+    const totalSales = teamMetrics.totalSales;
+    const avgSales = totalSales / employees.length;
+    const avgGrowth = employees.reduce((sum, e) => sum + (e.growth || 0), 0) / employees.length;
+
+    // Categorize employees by rating
+    const topPerformers = employees.filter(e => e.fairScore >= 75);
+    const improving = employees.filter(e => e.fairScore >= 55 && e.fairScore < 75 && (e.growth || 0) > 0);
+    const needsAttention = employees.filter(e => e.fairScore < 55);
+    const critical = employees.filter(e => e.fairScore < 40);
+
+    // Identify declining performers (>= B rating but negative growth)
+    const declining = employees.filter(e => e.fairScore >= 55 && (e.growth || 0) < -10);
+
+    // New hires (< 3 months)
+    const newHires = employees.filter(e => e.cohort && e.cohort.symbol === 'L1');
+
+    // Calculate trend
+    const growingCount = employees.filter(e => (e.growth || 0) > 0).length;
+    const trendPercentage = (growingCount / employees.length * 100).toFixed(0);
+    const trendIcon = avgGrowth > 5 ? '📈' : avgGrowth < -5 ? '📉' : '➡️';
+    const trendLabel = avgGrowth > 5 ? 'In crescita' : avgGrowth < -5 ? 'In calo' : 'Stabile';
+
+    // Generate executive summaries for each employee
+    const executiveSummaries = employees.map(emp => {
+        let summary = '';
+        const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
+        const growth = emp.growth || 0;
+        const vsTeam = ((emp.totalSales - avgSales) / avgSales * 100).toFixed(0);
+
+        if (rating === 'A') {
+            if (growth > 20) {
+                summary = `Top performer in forte crescita (+${growth.toFixed(0)}%), candidato per mentoring team`;
+            } else if (growth > 0) {
+                summary = `Top performer stabile, mantiene eccellenti performance (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+            } else {
+                summary = `Top performer ma con lieve calo (${growth.toFixed(0)}%), monitorare situazione`;
+            }
+        } else if (rating === 'B') {
+            if (growth > 10) {
+                summary = `Performance solida e in crescita (+${growth.toFixed(0)}%), potenziale futuro top performer`;
+            } else if (growth > 0) {
+                summary = `Performance stabile nella media, continua così (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+            } else {
+                summary = `Performance nella media ma in calo (${growth.toFixed(0)}%), serve supporto entro 2 settimane`;
+            }
+        } else if (rating === 'C') {
+            if (emp.cohort && emp.cohort.symbol === 'L1') {
+                summary = `Nuovo assunto (${emp.cohort.label}), performance sotto media è normale - continuare affiancamento`;
+            } else if (growth > 0) {
+                summary = `In difficoltà ma mostra miglioramento (+${growth.toFixed(0)}%), intensificare coaching`;
+            } else {
+                summary = `Performance sotto media e in calo (${growth.toFixed(0)}%), programmare 1-on-1 urgente`;
+            }
+        } else { // D
+            if (emp.cohort && emp.cohort.symbol === 'L1') {
+                summary = `Nuovo assunto con difficoltà iniziali - assegnare mentor immediato`;
+            } else {
+                summary = `Situazione critica (${growth.toFixed(0)}% growth), azione correttiva immediata necessaria`;
+            }
+        }
+
+        return { employee: emp.employee, summary, rating };
+    });
+
+    // Build dashboard HTML
+    const dashboardHtml = `
+        <div style="background: white; border: 1px solid #bdc3c7; border-radius: 3px; overflow: hidden; margin-bottom: 15px;">
+            <!-- Dashboard Header -->
+            <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: #ecf0f1; padding: 10px 15px; border-bottom: 2px solid #3498db;">
+                <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
+                    📊 DASHBOARD INSIGHTS - Analisi Performance Team
+                </div>
+                <div style="font-size: 9px; opacity: 0.8; margin-top: 2px;">
+                    Aggiornato: ${new Date().toLocaleString('it-IT')}
+                </div>
+            </div>
+
+            <!-- Three-column layout -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 15px;">
+
+                <!-- COLUMN 1: SITUAZIONE GENERALE -->
+                <div style="background: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 3px; padding: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: #2c3e50; margin-bottom: 8px; border-bottom: 2px solid #3498db; padding-bottom: 4px;">
+                        📈 SITUAZIONE GENERALE
+                    </div>
+                    <div style="font-size: 10px; color: #34495e; line-height: 1.6;">
+                        <p style="margin: 0 0 8px 0;">
+                            <strong>Il team ha generato €${totalSales.toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                            nel periodo analizzato (${employees.length} dipendenti attivi).
+                        </p>
+                        <p style="margin: 0 0 8px 0;">
+                            ${trendIcon} <strong>Trend generale: ${trendLabel}</strong>
+                            (${avgGrowth.toFixed(1)}% growth medio, ${growingCount}/${employees.length} in crescita)
+                        </p>
+                        <div style="background: white; padding: 8px; border-radius: 2px; margin-top: 8px;">
+                            <div style="font-size: 9px; color: #7f8c8d; margin-bottom: 4px;">Performance Distribution:</div>
+                            <div style="display: flex; gap: 8px; font-size: 9px;">
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="font-weight: 700; color: #27ae60; font-size: 14px;">${topPerformers.length}</div>
+                                    <div style="color: #7f8c8d;">⭐ A</div>
+                                </div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="font-weight: 700; color: #f39c12; font-size: 14px;">${improving.length}</div>
+                                    <div style="color: #7f8c8d;">📈 B↗</div>
+                                </div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="font-weight: 700; color: #e67e22; font-size: 14px;">${needsAttention.length}</div>
+                                    <div style="color: #7f8c8d;">⚠️ C</div>
+                                </div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="font-weight: 700; color: #e74c3c; font-size: 14px;">${critical.length}</div>
+                                    <div style="color: #7f8c8d;">🔴 D</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUMN 2: ALERT CRITICI -->
+                <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; padding: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: #856404; margin-bottom: 8px; border-bottom: 2px solid #ffc107; padding-bottom: 4px;">
+                        ⚠️ ALERT CRITICI
+                    </div>
+                    <div style="font-size: 10px; color: #856404; line-height: 1.5;">
+                        ${critical.length > 0 ? `
+                            <div style="background: #f8d7da; border-left: 3px solid #dc3545; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>🔴 ${critical.length} dipendente${critical.length > 1 ? 'i' : ''} in situazione critica (rating D)</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${critical.slice(0, 3).map(e => `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: ${e.growth ? e.growth.toFixed(0) + '% growth' : 'N/A'} →
+                                            ${e.cohort && e.cohort.symbol === 'L1' ? 'Assegnare mentor' : 'Azione immediata'}
+                                        </li>
+                                    `).join('')}
+                                    ${critical.length > 3 ? `<li style="font-style: italic; color: #6c757d;">...e altri ${critical.length - 3}</li>` : ''}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${declining.length > 0 ? `
+                            <div style="background: #fff3cd; border-left: 3px solid #ffc107; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>📉 ${declining.length} performer in calo</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${declining.slice(0, 2).map(e => `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: ${e.growth.toFixed(0)}% → Programmare 1-on-1
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${newHires.filter(e => e.fairScore < 40).length > 0 ? `
+                            <div style="background: #d1ecf1; border-left: 3px solid #17a2b8; padding: 6px 8px; border-radius: 2px;">
+                                <strong>🌱 ${newHires.filter(e => e.fairScore < 40).length} nuovo/i assunto/i in difficoltà</strong>
+                                <div style="font-size: 9px; margin-top: 4px;">
+                                    Performance sotto media è normale nei primi 90 giorni. Verificare affiancamento.
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${critical.length === 0 && declining.length === 0 && newHires.filter(e => e.fairScore < 40).length === 0 ? `
+                            <div style="background: #d4edda; border-left: 3px solid #28a745; padding: 8px; border-radius: 2px; text-align: center;">
+                                <strong style="color: #155724;">✅ Nessun alert critico</strong>
+                                <div style="font-size: 9px; color: #155724; margin-top: 4px;">Team in buona condizione generale</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- COLUMN 3: OPPORTUNITÀ -->
+                <div style="background: #d4edda; border: 1px solid #28a745; border-radius: 3px; padding: 12px;">
+                    <div style="font-size: 11px; font-weight: 700; color: #155724; margin-bottom: 8px; border-bottom: 2px solid #28a745; padding-bottom: 4px;">
+                        🎯 OPPORTUNITÀ
+                    </div>
+                    <div style="font-size: 10px; color: #155724; line-height: 1.5;">
+                        ${topPerformers.filter(e => (e.growth || 0) > 20).length > 0 ? `
+                            <div style="background: white; border-left: 3px solid #28a745; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>⭐ ${topPerformers.filter(e => e.growth > 20).length} top performer in forte crescita</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${topPerformers.filter(e => e.growth > 20).slice(0, 2).map(e => `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: +${e.growth.toFixed(0)}% → Candidato per ruolo senior/mentor
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${improving.length > 0 ? `
+                            <div style="background: white; border-left: 3px solid #17a2b8; padding: 6px 8px; margin-bottom: 6px; border-radius: 2px;">
+                                <strong>📈 ${improving.length} dipendente${improving.length > 1 ? 'i' : ''} in miglioramento</strong>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px; font-size: 9px;">
+                                    ${improving.slice(0, 2).map(e => `
+                                        <li style="margin-bottom: 2px;">
+                                            <strong>${e.employee}</strong>: +${e.growth.toFixed(0)}% → Potenziale futuro top performer
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${topPerformers.length > 0 ? `
+                            <div style="background: white; border-left: 3px solid #6f42c1; padding: 6px 8px; border-radius: 2px;">
+                                <strong>💡 Suggerimento</strong>
+                                <div style="font-size: 9px; margin-top: 4px;">
+                                    Organizzare sessione di condivisione best practices con top ${topPerformers.length} performer per diffondere tecniche vincenti.
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Executive Summaries - Compact List -->
+            <div style="background: #f8f9fa; border-top: 1px solid #dee2e6; padding: 12px 15px;">
+                <div style="font-size: 11px; font-weight: 700; color: #2c3e50; margin-bottom: 8px; border-bottom: 2px solid #6c757d; padding-bottom: 4px;">
+                    💼 EXECUTIVE SUMMARY PER DIPENDENTE
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 9px;">
+                    ${executiveSummaries.map(item => {
+                        const ratingColor = item.rating === 'A' ? '#27ae60' : item.rating === 'B' ? '#f39c12' : item.rating === 'C' ? '#e67e22' : '#e74c3c';
+                        return `
+                            <div style="background: white; border: 1px solid #dee2e6; border-left: 3px solid ${ratingColor}; padding: 6px 8px; border-radius: 2px;">
+                                <div style="font-weight: 700; color: #2c3e50; margin-bottom: 2px;">
+                                    <span style="display: inline-block; background: ${ratingColor}; color: white; padding: 1px 4px; border-radius: 2px; font-size: 8px; margin-right: 4px;">${item.rating}</span>
+                                    ${item.employee}
+                                </div>
+                                <div style="color: #6c757d; line-height: 1.4;">
+                                    ${item.summary}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+
+    return dashboardHtml;
+}
+
 // TABLE VIEW - Phase 1 & 2 integrated
 function renderEmployeeTableView() {
     console.log('🔄 renderEmployeeTableView() called - Growth analysis will be logged');
@@ -15102,16 +15360,15 @@ function renderEmployeeTableView() {
                     ${emp.upt ? `<span style="cursor: help; border-bottom: 1px dotted #3498db;" title="📄 Documenti: ${emp.totalTransactions || 0} | 🛍️ Pezzi: ${emp.totalQty || 0}&#10;UPT = Pezzi ÷ Documenti = ${emp.totalQty || 0} ÷ ${emp.totalTransactions || 0} = ${emp.upt.toFixed(2)}">${emp.upt.toFixed(2)}</span>` : '—'}
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
-                    <div style="display: inline-block; background: ${emp.cohort.badgeColor}; color: ${emp.cohort.textColor}; padding: 4px 6px; border-radius: 3px; text-align: center; min-width: 50px;">
-                        <div style="font-weight: 700; font-size: 13px; line-height: 1;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                        <span style="display: inline-block; padding: 2px 6px; background: ${emp.cohort.badgeColor}; color: ${emp.cohort.textColor}; border-radius: 3px; font-weight: 700; font-size: 12px; min-width: 30px; cursor: help;"
+                              onclick="showTenureTooltip('${emp.employee.replace(/'/g, "\\'")}', ${emp.tenure ? emp.tenure.tenureMonths : 0})"
+                              title="Click per dettagli anzianità">
                             ${emp.cohort.symbol}
-                        </div>
-                        <div style="font-weight: 600; font-size: 9px; line-height: 1; margin-top: 2px;">
+                        </span>
+                        <span style="font-size: 9px; color: #7f8c8d; font-weight: 600;">
                             ${emp.cohort.label}
-                        </div>
-                        <div style="font-size: 8px; line-height: 1; margin-top: 2px; opacity: 0.8;">
-                            (${emp.tenure ? (emp.tenure.tenureMonths / 12).toFixed(1) : '0.0'}y)
-                        </div>
+                        </span>
                     </div>
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
@@ -15165,7 +15422,16 @@ function renderEmployeeTableView() {
         </div>
     `;
 
-    document.getElementById('employeeAnalysisContainer').innerHTML = html;
+    // PHASE 1: Generate narrative dashboard
+    const teamMetrics = {
+        totalSales: filteredPerformances.reduce((sum, e) => sum + e.totalSales, 0),
+        totalTransactions: filteredPerformances.reduce((sum, e) => sum + e.totalTransactions, 0),
+        totalQty: filteredPerformances.reduce((sum, e) => sum + e.totalQty, 0)
+    };
+    const narrativeDashboard = generateNarrativeDashboard(filteredPerformances, teamMetrics);
+
+    // Insert narrative dashboard BEFORE the table
+    document.getElementById('employeeAnalysisContainer').innerHTML = narrativeDashboard + html;
 
     // Save calculated performances globally and update dashboard
     employeePerformancesGlobal = filteredPerformances;
@@ -24220,6 +24486,46 @@ function buildAutoMatchSuggestions() {
     });
 
     return suggestions;
+}
+
+/**
+ * Show tenure details tooltip on click
+ * @param {string} employeeName - Employee name
+ * @param {number} tenureMonths - Tenure in months
+ */
+function showTenureTooltip(employeeName, tenureMonths) {
+    const years = (tenureMonths / 12).toFixed(1);
+    const months = tenureMonths % 12;
+
+    // Get experience level details
+    let level = '';
+    if (tenureMonths < 3) level = '🌱 New Hire (0-3 mesi)';
+    else if (tenureMonths < 12) level = '📚 Junior (3-12 mesi)';
+    else if (tenureMonths < 24) level = '💼 Established (1-2 anni)';
+    else if (tenureMonths < 48) level = '⭐ Specialist (2-4 anni)';
+    else if (tenureMonths < 84) level = '🏆 Senior (4-7 anni)';
+    else level = '👑 Expert (7+ anni)';
+
+    // Get HR data if available
+    const hrData = getHREmployee(employeeName);
+    const hireDate = hrData && hrData.data_assunzione ? hrData.data_assunzione : 'N/A';
+
+    alert(
+        `📊 DETTAGLI ANZIANITÀ\n\n` +
+        `Dipendente: ${employeeName}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `⏱️ Anzianità totale:\n` +
+        `   ${years} anni (${tenureMonths} mesi)\n\n` +
+        `📅 Data assunzione:\n` +
+        `   ${hireDate}\n\n` +
+        `🎯 Livello esperienza:\n` +
+        `   ${level}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `💡 L'anzianità viene utilizzata per:\n` +
+        `   • Normalizzare le performance\n` +
+        `   • Identificare il potenziale\n` +
+        `   • Suggerire azioni manageriali`
+    );
 }
 
 /**
