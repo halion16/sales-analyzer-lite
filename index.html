@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Analyzer LITE - Simple & Fast</title>
+    <link rel="stylesheet" href="assets/styles/main.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="container">
+            <h1 class="app-title">📊 Sales Analyzer <span class="badge-lite">LITE</span></h1>
+            <div class="header-actions">
+                <button id="btnRefresh" class="btn btn-primary">🔄 Refresh</button>
+                <button id="btnSettings" class="btn btn-secondary">⚙️</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+        <div class="container">
+            <button class="tab-btn active" data-view="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-view="ranking">👥 Team Ranking</button>
+        </div>
+    </nav>
+
+    <!-- Main App Container -->
+    <main class="app-container">
+        <div class="container">
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading data...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorState" class="error-state" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <h2>Oops! Something went wrong</h2>
+                <p id="errorMessage"></p>
+                <button class="btn btn-primary" onclick="location.reload()">Try Again</button>
+            </div>
+
+            <!-- VIEW 1: DASHBOARD -->
+            <div id="dashboardView" class="view" style="display: none;">
+                <!-- Top & Bottom Performers -->
+                <div class="metrics-grid">
+                    <!-- Top Performers Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>🏆 Top Performers</h2>
+                        </div>
+                        <div id="topPerformersContainer" class="performers-list">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+
+                    <!-- Needs Attention Card -->
+                    <div class="card alert-card">
+                        <div class="card-header">
+                            <h2>⚠️ Needs Attention</h2>
+                        </div>
+                        <div id="needsAttentionContainer" class="performers-list">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Metrics -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📈 Team Metrics</h2>
+                    </div>
+                    <div id="teamMetricsContainer" class="team-metrics">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button class="btn btn-primary" onclick="showView('ranking')">👥 View All Employees</button>
+                    <button class="btn btn-secondary" onclick="exportData()">📥 Export for Payroll</button>
+                </div>
+            </div>
+
+            <!-- VIEW 2: RANKING TABLE -->
+            <div id="rankingView" class="view" style="display: none;">
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <input type="text" id="searchEmployee" class="search-input" placeholder="🔍 Search employee...">
+                    <select id="filterShop" class="filter-select">
+                        <option value="all">🏪 All Shops</option>
+                    </select>
+                    <select id="filterType" class="filter-select">
+                        <option value="all">👥 All Employees</option>
+                        <option value="active">✅ Active Only</option>
+                        <option value="full-time">🟢 Full-time Only</option>
+                        <option value="part-time">🔵 Part-time Only</option>
+                    </select>
+                </div>
+
+                <!-- Employee Table -->
+                <div class="table-container">
+                    <table id="employeeTable" class="employee-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('name')">👤 Name <span class="sort-icon"></span></th>
+                                <th onclick="sortTable('sales')">💰 Sales <span class="sort-icon"></span></th>
+                                <th onclick="sortTable('rating')">📊 Rating <span class="sort-icon"></span></th>
+                                <th onclick="sortTable('trend')">📈 Trend <span class="sort-icon"></span></th>
+                                <th onclick="sortTable('ticket')">🎫 Ticket <span class="sort-icon"></span></th>
+                                <th>⏰ Type</th>
+                                <th>🎓 Experience</th>
+                                <th>🔔 Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody">
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Summary Footer -->
+                <div class="table-summary">
+                    <span id="employeeCount">0 employees</span>
+                </div>
+            </div>
+
+            <!-- VIEW 3: EMPLOYEE DETAIL (Modal/Overlay) -->
+            <div id="detailView" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <span class="modal-close" onclick="closeDetail()">&times;</span>
+                    <div id="employeeDetailContainer">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="container">
+            <p>Sales Analyzer LITE &copy; 2025 | <a href="#" onclick="showHelp()">Help</a> | <a href="#" onclick="showAbout()">About</a></p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="assets/scripts/api-client.js"></script>
+    <script src="assets/scripts/utils.js"></script>
+    <script src="components/dashboard.js"></script>
+    <script src="components/ranking-table.js"></script>
+    <script src="components/employee-detail.js"></script>
+    <script src="assets/scripts/app.js"></script>
+</body>
+</html>
