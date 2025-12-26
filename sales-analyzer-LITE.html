@@ -2897,6 +2897,36 @@ Dipendente con 3 mesi maternità:
         </div>
     </div>
 
+    <!-- TREND MODAL - Phase 2 (Hidden by default) -->
+    <div id="trendModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center;" onclick="closeTrendModal(event)">
+        <div style="background: white; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; border-radius: 5px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); padding: 16px 20px; border-radius: 5px 5px 0 0; color: white; display: flex; align-items: center; justify-content: space-between;">
+                <div style="font-size: 16px; font-weight: 600; letter-spacing: 0.5px;">
+                    📈 Trend Vendite - <span id="trendModalEmployeeName"></span>
+                </div>
+                <button onclick="closeTrendModal()" style="background: transparent; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+            </div>
+
+            <!-- Chart Container -->
+            <div style="padding: 20px;">
+                <canvas id="trendChart" width="800" height="400"></canvas>
+            </div>
+
+            <!-- Insights Section -->
+            <div id="trendInsights" style="padding: 0 20px 20px 20px; border-top: 1px solid #dee2e6; margin-top: 10px;">
+                <!-- Insights will be inserted here -->
+            </div>
+
+            <!-- Footer -->
+            <div style="padding: 12px 20px; border-top: 1px solid #dee2e6; text-align: right; background: #f8f9fa;">
+                <button onclick="closeTrendModal()" style="background: #95a5a6; border: none; color: white; padding: 8px 16px; font-size: 12px; cursor: pointer; border-radius: 3px; font-weight: 600;">
+                    Chiudi
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Matching Diagnostics Modal (Hidden by default) -->
     <div id="matchingDiagnosticsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow: auto;">
         <div style="background: white; margin: 50px auto; max-width: 1200px; border-radius: 5px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
@@ -14023,6 +14053,339 @@ function getGrowthTooltip(emp) {
 
 /**
  * ============================================
+ * SPARKLINE RENDERER - PHASE 2
+ * ============================================
+ * Generates inline SVG sparkline chart for sales trend
+ *
+ * @param {Object} periods - Sales by period {periodo: {sales: xxx}}
+ * @param {Array} periodList - Sorted list of period names
+ * @param {string} employeeName - Employee name for modal
+ * @returns {string} SVG sparkline HTML
+ */
+function renderSparkline(periods, periodList, employeeName) {
+    if (!periods || !periodList || periodList.length === 0) {
+        return '<span style="color: #95a5a6; font-size: 10px;">No data</span>';
+    }
+
+    // Get last 6 periods max (for compact display)
+    const recentPeriods = periodList.slice(-6);
+    const values = recentPeriods.map(p => periods[p] ? periods[p].sales : 0);
+
+    if (values.length === 0 || values.every(v => v === 0)) {
+        return '<span style="color: #95a5a6; font-size: 10px;">—</span>';
+    }
+
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const range = max - min || 1; // Avoid division by zero
+
+    // Generate SVG path points
+    const width = 60;
+    const height = 20;
+    const padding = 2;
+
+    const points = values.map((v, i) => {
+        const x = padding + (i / Math.max(values.length - 1, 1)) * (width - 2 * padding);
+        const y = height - padding - ((v - min) / range) * (height - 2 * padding);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    // Determine trend color
+    const firstVal = values[0];
+    const lastVal = values[values.length - 1];
+    const trendUp = lastVal > firstVal;
+    const strokeColor = trendUp ? '#27ae60' : lastVal < firstVal ? '#e74c3c' : '#3498db';
+
+    // Create tooltip text
+    const tooltipText = recentPeriods.map((p, i) =>
+        `${p}: €${values[i].toLocaleString('it-IT', {maximumFractionDigits: 0})}`
+    ).join('&#10;');
+
+    // Escape employee name for onclick
+    const safeEmployeeName = employeeName.replace(/'/g, "\\'");
+
+    return `
+        <svg width="${width}" height="${height}"
+             style="cursor: pointer; vertical-align: middle;"
+             onclick="showTrendModal('${safeEmployeeName}')"
+             title="${tooltipText}&#10;&#10;Click per grafico dettagliato">
+            <polyline points="${points}"
+                      fill="none"
+                      stroke="${strokeColor}"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"/>
+            ${values.map((v, i) => {
+                const x = padding + (i / Math.max(values.length - 1, 1)) * (width - 2 * padding);
+                const y = height - padding - ((v - min) / range) * (height - 2 * padding);
+                return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5" fill="${strokeColor}"/>`;
+            }).join('')}
+        </svg>
+    `;
+}
+
+/**
+ * ============================================
+ * TREND MODAL - PHASE 2
+ * ============================================
+ * Shows detailed Chart.js trend chart for employee
+ */
+
+// Global Chart.js instance (to destroy on reopen)
+let trendChartInstance = null;
+
+function showTrendModal(employeeName) {
+    // Find employee data
+    const employee = employeePerformancesGlobal.find(e => e.employee === employeeName);
+    if (!employee) {
+        alert('Dati dipendente non trovati');
+        return;
+    }
+
+    // Get periods and values
+    const periods = selectedEmployeePeriods.sort();
+    const employeeValues = periods.map(p =>
+        employee.periods && employee.periods[p] ? employee.periods[p].sales : 0
+    );
+
+    // Calculate team averages for comparison
+    const teamAverages = periods.map(p => {
+        const periodData = employeePerformancesGlobal
+            .filter(e => e.periods && e.periods[p])
+            .map(e => e.periods[p].sales);
+        return periodData.length > 0
+            ? periodData.reduce((a, b) => a + b, 0) / periodData.length
+            : 0;
+    });
+
+    // Set employee name in modal
+    document.getElementById('trendModalEmployeeName').textContent = employeeName;
+
+    // Destroy previous chart if exists
+    if (trendChartInstance) {
+        trendChartInstance.destroy();
+    }
+
+    // Create Chart.js
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: periods,
+            datasets: [{
+                label: employeeName,
+                data: employeeValues,
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                borderWidth: 3,
+                pointRadius: 5,
+                pointBackgroundColor: '#3498db',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointHoverRadius: 7,
+                tension: 0.3,
+                fill: true
+            }, {
+                label: 'Media Team',
+                data: teamAverages,
+                borderColor: '#95a5a6',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                pointRadius: 3,
+                pointBackgroundColor: '#95a5a6',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 1,
+                tension: 0.3,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        font: {
+                            size: 12,
+                            weight: '600'
+                        },
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(44, 62, 80, 0.95)',
+                    titleFont: {
+                        size: 13,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    padding: 12,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '€' + context.parsed.y.toLocaleString('it-IT', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            });
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '€' + value.toLocaleString('it-IT');
+                        },
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            }
+        }
+    });
+
+    // Generate insights
+    generateTrendInsights(employee, employeeValues, teamAverages, periods);
+
+    // Show modal
+    const modal = document.getElementById('trendModal');
+    modal.style.display = 'flex';
+}
+
+function generateTrendInsights(employee, values, teamAvgs, periods) {
+    const insightsDiv = document.getElementById('trendInsights');
+
+    // Calculate statistics
+    const firstVal = values[0];
+    const lastVal = values[values.length - 1];
+    const growth = firstVal > 0 ? ((lastVal - firstVal) / firstVal * 100) : 0;
+    const avgEmployeeSales = values.reduce((a, b) => a + b, 0) / values.length;
+    const avgTeamSales = teamAvgs.reduce((a, b) => a + b, 0) / teamAvgs.length;
+    const vsTeam = avgTeamSales > 0 ? ((avgEmployeeSales - avgTeamSales) / avgTeamSales * 100) : 0;
+
+    // Determine trend type
+    let trendIcon, trendLabel, trendColor;
+    if (growth > 10) {
+        trendIcon = '📈';
+        trendLabel = 'Trend crescente forte';
+        trendColor = '#27ae60';
+    } else if (growth > 0) {
+        trendIcon = '↗️';
+        trendLabel = 'Trend crescente moderato';
+        trendColor = '#3498db';
+    } else if (growth > -10) {
+        trendIcon = '➡️';
+        trendLabel = 'Trend stabile';
+        trendColor = '#95a5a6';
+    } else {
+        trendIcon = '📉';
+        trendLabel = 'Trend decrescente';
+        trendColor = '#e74c3c';
+    }
+
+    // Count periods above/below team
+    const periodsAboveTeam = values.filter((v, i) => v > teamAvgs[i]).length;
+    const percentAboveTeam = (periodsAboveTeam / values.length * 100).toFixed(0);
+
+    // Generate HTML
+    insightsDiv.innerHTML = `
+        <div style="padding-top: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: #2c3e50; margin-bottom: 12px; border-bottom: 2px solid #3498db; padding-bottom: 6px;">
+                📊 INSIGHTS AUTOMATICI
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 11px;">
+                <!-- Trend -->
+                <div style="background: ${trendColor}15; border-left: 3px solid ${trendColor}; padding: 10px; border-radius: 3px;">
+                    <div style="color: #7f8c8d; font-size: 9px; margin-bottom: 4px; text-transform: uppercase;">Andamento</div>
+                    <div style="font-weight: 700; font-size: 13px; color: ${trendColor};">${trendIcon} ${trendLabel}</div>
+                    <div style="color: #7f8c8d; font-size: 10px; margin-top: 4px;">
+                        ${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% dal primo all'ultimo periodo
+                    </div>
+                </div>
+
+                <!-- vs Team -->
+                <div style="background: ${vsTeam >= 0 ? '#27ae60' : '#e74c3c'}15; border-left: 3px solid ${vsTeam >= 0 ? '#27ae60' : '#e74c3c'}; padding: 10px; border-radius: 3px;">
+                    <div style="color: #7f8c8d; font-size: 9px; margin-bottom: 4px; text-transform: uppercase;">vs Media Team</div>
+                    <div style="font-weight: 700; font-size: 13px; color: ${vsTeam >= 0 ? '#27ae60' : '#e74c3c'};">
+                        ${vsTeam >= 0 ? '+' : ''}${vsTeam.toFixed(1)}%
+                    </div>
+                    <div style="color: #7f8c8d; font-size: 10px; margin-top: 4px;">
+                        €${avgEmployeeSales.toLocaleString('it-IT', {maximumFractionDigits: 0})} vs €${avgTeamSales.toLocaleString('it-IT', {maximumFractionDigits: 0})} media
+                    </div>
+                </div>
+
+                <!-- Consistency -->
+                <div style="background: #3498db15; border-left: 3px solid #3498db; padding: 10px; border-radius: 3px;">
+                    <div style="color: #7f8c8d; font-size: 9px; margin-bottom: 4px; text-transform: uppercase;">Costanza</div>
+                    <div style="font-weight: 700; font-size: 13px; color: #3498db;">
+                        ${percentAboveTeam}% periodi sopra media
+                    </div>
+                    <div style="color: #7f8c8d; font-size: 10px; margin-top: 4px;">
+                        ${periodsAboveTeam}/${values.length} periodi sopra la media team
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary text -->
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 3px; margin-top: 12px; font-size: 11px; line-height: 1.6;">
+                <strong style="color: #2c3e50;">📝 Riepilogo:</strong>
+                <span style="color: #555;">
+                    ${employee.employee} ha registrato una ${trendLabel.toLowerCase()} con una crescita del
+                    <strong style="color: ${trendColor};">${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%</strong>
+                    tra il primo e l'ultimo periodo.
+                    La performance media è ${vsTeam >= 0 ? 'superiore' : 'inferiore'} alla media del team del
+                    <strong>${Math.abs(vsTeam).toFixed(1)}%</strong>, con
+                    <strong>${periodsAboveTeam} su ${values.length} periodi</strong> sopra la media.
+                </span>
+            </div>
+        </div>
+    `;
+}
+
+function closeTrendModal(event) {
+    // Close only if clicking backdrop or calling directly
+    if (!event || event.target.id === 'trendModal') {
+        document.getElementById('trendModal').style.display = 'none';
+
+        // Destroy chart to free memory
+        if (trendChartInstance) {
+            trendChartInstance.destroy();
+            trendChartInstance = null;
+        }
+    }
+}
+
+/**
+ * ============================================
  * NARRATIVE DASHBOARD - PHASE 1
  * ============================================
  * Generates actionable insights from employee data
@@ -15184,10 +15547,13 @@ function renderEmployeeTableView() {
                     </div>
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
-                    ${emp.growth != null
-                        ? `<span style="color: ${growthColor}; font-weight: 600; font-size: 13px;">${growthIcon} ${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%</span>`
-                        : `<span style="color: #95a5a6; font-weight: 600;">—</span>`
-                    }
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        ${renderSparkline(emp.periods, periods, emp.employee)}
+                        ${emp.growth != null
+                            ? `<span style="color: ${growthColor}; font-weight: 600; font-size: 10px;">${growthIcon} ${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%</span>`
+                            : `<span style="color: #95a5a6; font-weight: 600; font-size: 10px;">—</span>`
+                        }
+                    </div>
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 600; color: #2c3e50;">
                     €${emp.avgTicket.toFixed(2)}
