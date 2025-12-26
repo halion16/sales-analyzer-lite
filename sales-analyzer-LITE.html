@@ -2443,9 +2443,6 @@ Dipendente con 3 mesi maternità:
                 <div id="employeeSummary" style="background: #34495e; color: #ecf0f1; padding: 8px 12px; margin-bottom: 10px; border-left: 3px solid #3498db; font-size: 10px;">
                 </div>
 
-                <!-- Multi-KPI Dashboard -->
-                <div id="employeeMultiKpiDashboard" style="margin-bottom: 10px;"></div>
-
                 <!-- PERFORMANCE INDEX INFO MODAL (Hidden by default) -->
                 <div id="performanceIndexModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: center;" onclick="closePerformanceIndexInfo(event)">
                     <div style="background: white; max-width: 600px; max-height: 80vh; overflow-y: auto; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
@@ -13894,9 +13891,6 @@ function renderEmployeeComparisonReport() {
         perfIndexPanel.style.display = employeeRankingMode === 'performanceIndex' ? 'block' : 'none';
     }
 
-    // Render Multi-KPI Dashboard
-    renderEmployeeMultiKpiDashboard();
-
     // Render main analysis based on current view
     if (employeeCurrentView === 'table') {
         renderEmployeeTableView();
@@ -14006,222 +14000,6 @@ function checkAndDisplayHRWarnings() {
 // Multi-KPI Dashboard with all advanced metrics
 // CRITICAL FIX: Now syncs with active ranking mode for accurate Top Performer & Avg metric
 // Now accepts calculated performances from table view for accurate metrics
-function renderEmployeeMultiKpiDashboard(calculatedPerformances) {
-    const { employeeData, periodResults } = employeeComparisonData;
-    const periods = selectedEmployeePeriods.sort();
-
-    // Get current ranking mode (same as table view)
-    const rankingMode = employeeRankingMode || 'absolute';
-
-    // Use calculated performances if provided (from table view with all metrics),
-    // otherwise fall back to raw employeeData (for backwards compatibility)
-    const allEmployees = calculatedPerformances || Object.values(employeeData);
-
-    // SAFETY CHECK: If no employees after filtering, hide dashboard
-    if (allEmployees.length === 0) {
-        document.getElementById('employeeMultiKpiDashboard').innerHTML = `
-            <div style="background: #f39c12; color: white; padding: 12px; text-align: center; border-radius: 3px; font-size: 11px;">
-                ⚠️ No employees match the current filters. Adjust filters to see data.
-            </div>
-        `;
-        return;
-    }
-    const totalSales = allEmployees.reduce((sum, e) => sum + e.totalSales, 0);
-    const totalTransactions = allEmployees.reduce((sum, e) => sum + e.totalTransactions, 0);
-    const totalQty = allEmployees.reduce((sum, e) => sum + e.totalQty, 0);
-
-    // Calculate metrics BEFORE determining average (needed for ranking)
-    const avgSalesPerEmployee = totalSales / allEmployees.length;
-    const avgTransactionsPerEmployee = totalTransactions / allEmployees.length;
-
-    // If using calculated performances, metrics are already available
-    const globalAvgTicket = calculatedPerformances
-        ? allEmployees.reduce((sum, e) => sum + e.avgTicket, 0) / allEmployees.length
-        : totalSales / totalTransactions;
-    const globalUPT = calculatedPerformances
-        ? allEmployees.reduce((sum, e) => sum + e.upt, 0) / allEmployees.length
-        : totalQty / totalTransactions;
-
-    // Calculate average growth - use calculated values if available
-    let avgGrowth = 0;
-    if (calculatedPerformances) {
-        // Use already calculated growth from table view
-        const growthRates = allEmployees
-            .filter(emp => emp.growth != null && isFinite(emp.growth))
-            .map(emp => emp.growth);
-        avgGrowth = growthRates.length > 0 ? growthRates.reduce((a,b) => a+b, 0) / growthRates.length : 0;
-    } else {
-        // Legacy calculation for backwards compatibility
-        const aggregatedEmployees = {};
-        allEmployees.forEach(emp => {
-            if (!aggregatedEmployees[emp.employee]) {
-                aggregatedEmployees[emp.employee] = {
-                    employee: emp.employee,
-                    totalSales: 0,
-                    periods: {}
-                };
-            }
-            aggregatedEmployees[emp.employee].totalSales += emp.totalSales;
-            Object.keys(emp.periods).forEach(periodo => {
-                if (!aggregatedEmployees[emp.employee].periods[periodo]) {
-                    aggregatedEmployees[emp.employee].periods[periodo] = { sales: 0 };
-                }
-                aggregatedEmployees[emp.employee].periods[periodo].sales += emp.periods[periodo].sales;
-            });
-        });
-
-        const uniqueEmployees = Object.values(aggregatedEmployees);
-        const totalNetworkSales = uniqueEmployees.reduce((sum, e) => sum + e.totalSales, 0);
-        const avgNetworkSalesPerPeriod = totalNetworkSales / uniqueEmployees.length / periods.length;
-        const networkContext = {
-            avgEmployeeSales: avgNetworkSalesPerPeriod,
-            totalEmployees: uniqueEmployees.length,
-            totalPeriods: periods.length
-        };
-
-        let growthRates = [];
-        uniqueEmployees.forEach(emp => {
-            const periodsWithData = Object.keys(emp.periods).sort();
-            const yoyGrowthResult = calculateYoYGrowth(emp.periods, periodsWithData);
-            const legacyGrowthResult = calculateEmployeeGrowth(emp.periods, periodsWithData, networkContext);
-            const growthResult = yoyGrowthResult.growth !== null ? yoyGrowthResult : legacyGrowthResult;
-            if (growthResult.growth != null && !isNaN(growthResult.growth) && isFinite(growthResult.growth)) {
-                growthRates.push(growthResult.growth);
-            }
-        });
-        avgGrowth = growthRates.length > 0 ? growthRates.reduce((a,b) => a+b, 0) / growthRates.length : 0;
-    }
-
-    // CRITICAL FIX: Find top performer based on ACTIVE RANKING MODE (not always totalSales)
-    let sorted, metricLabel, metricValue, avgMetric;
-
-    if (rankingMode === 'absolute') {
-        sorted = [...allEmployees].sort((a, b) => b.totalSales - a.totalSales);
-        metricLabel = 'Total Sales';
-        metricValue = (sorted[0].totalSales / 1000).toFixed(0) + 'k';
-        avgMetric = (avgSalesPerEmployee / 1000).toFixed(1) + 'k';
-    } else if (rankingMode === 'adjusted') {
-        // ADJUSTED PERFORMANCE MODE: Sales per Active Day
-        sorted = [...allEmployees].map(emp => {
-            const adjResult = getAdjustedScore(emp.employee, emp);
-            return {
-                ...emp,
-                adjustedScore: adjResult.score,
-                adjustedMetrics: adjResult.metrics,
-                isAdjusted: adjResult.isAdjusted
-            };
-        }).sort((a, b) => b.adjustedScore - a.adjustedScore);
-
-        metricLabel = 'Avg €/Active Day';
-        const topMetrics = sorted[0].adjustedMetrics;
-        if (topMetrics && topMetrics.success) {
-            metricValue = '€' + topMetrics.avgSalesPerActiveDay.toFixed(0);
-        } else {
-            metricValue = '€' + sorted[0].adjustedScore.toFixed(0);
-        }
-    } else if (rankingMode === 'efficiency') {
-        sorted = [...allEmployees].sort((a, b) =>
-            (b.normalizedMetrics?.salesPerHour || 0) - (a.normalizedMetrics?.salesPerHour || 0)
-        );
-        metricLabel = '€/Hour';
-        metricValue = '€' + (sorted[0].normalizedMetrics?.salesPerHour || 0).toFixed(0);
-        const totalEfficiency = allEmployees.reduce((sum, e) => sum + (e.normalizedMetrics?.salesPerHour || 0), 0);
-        avgMetric = '€' + (totalEfficiency / allEmployees.length).toFixed(0);
-    } else if (rankingMode === 'performanceIndex') {
-        sorted = [...allEmployees].sort((a, b) =>
-            (b.performanceIndex || b.normalizedMetrics?.performanceIndex || 0) -
-            (a.performanceIndex || a.normalizedMetrics?.performanceIndex || 0)
-        );
-        metricLabel = 'Perf. Index';
-        metricValue = (sorted[0].performanceIndex || sorted[0].normalizedMetrics?.performanceIndex || 0).toFixed(0);
-        const totalPI = allEmployees.reduce((sum, e) => sum + (e.performanceIndex || e.normalizedMetrics?.performanceIndex || 0), 0);
-        avgMetric = (totalPI / allEmployees.length).toFixed(0);
-    } else if (rankingMode === 'fairScore') {
-        sorted = [...allEmployees].sort((a, b) => (b.fairScore || 0) - (a.fairScore || 0));
-        metricLabel = 'Equity Score';
-        metricValue = (sorted[0].fairScore || 0).toFixed(0);
-        const totalFS = allEmployees.reduce((sum, e) => sum + (e.fairScore || 0), 0);
-        avgMetric = (totalFS / allEmployees.length).toFixed(0);
-    } else {
-        // Fallback to absolute
-        sorted = [...allEmployees].sort((a, b) => b.totalSales - a.totalSales);
-        metricLabel = 'Total Sales';
-        metricValue = (sorted[0].totalSales / 1000).toFixed(0) + 'k';
-        avgMetric = (avgSalesPerEmployee / 1000).toFixed(1) + 'k';
-    }
-
-    const topPerformer = sorted[0];
-    const bottomPerformer = sorted[sorted.length - 1];
-
-    // Calculate consistency scores - use already calculated values if available
-    let avgConsistency = 0;
-    if (calculatedPerformances) {
-        // Use already calculated consistency scores from table view
-        const consistencyScores = allEmployees
-            .filter(emp => emp.consistencyScore != null && emp.periodsActive >= 3)
-            .map(emp => emp.consistencyScore);
-        avgConsistency = consistencyScores.length > 0 ? consistencyScores.reduce((a,b) => a+b, 0) / consistencyScores.length : 0;
-    } else {
-        // Legacy calculation for backwards compatibility
-        let consistencyScores = [];
-        allEmployees.forEach(emp => {
-            const salesValues = Object.values(emp.periods).map(p => p.sales);
-            if (salesValues.length >= 3) {
-                const avg = salesValues.reduce((a,b) => a+b, 0) / salesValues.length;
-                const variance = salesValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / salesValues.length;
-                const stdDev = Math.sqrt(variance);
-                const cv = (stdDev / avg) * 100; // Coefficient of variation
-                consistencyScores.push(cv);
-            }
-        });
-        avgConsistency = consistencyScores.length > 0 ? consistencyScores.reduce((a,b) => a+b, 0) / consistencyScores.length : 0;
-    }
-
-    // Build dynamic labels based on ranking mode
-    const modeLabels = {
-        absolute: { avg: 'Avg Sales/Emp', tooltip: 'Media vendite per dipendente (Total Sales ÷ N. dipendenti). Ranking mode: Absolute Sales.' },
-        efficiency: { avg: 'Avg €/Hour', tooltip: 'Media efficienza per dipendente (€/Ora lavorata). Ranking mode: Efficiency.' },
-        performanceIndex: { avg: 'Avg Perf. Index', tooltip: 'Media Performance Index per dipendente (normalizzato per ore e tenure). Ranking mode: Performance Index.' },
-        fairScore: { avg: 'Avg Equity Score', tooltip: 'Media Equity Score per dipendente (bias-free 0-100 score). Ranking mode: Equity Score.' }
-    };
-    const labels = modeLabels[rankingMode] || modeLabels.absolute;
-
-    const html = `
-        <div style="background: #2c3e50; padding: 10px; border-radius: 2px; color: white; border: 1px solid #34495e;">
-            <div style="font-size: 9px; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.3px; text-transform: uppercase; color: #ecf0f1;">📊 Multi-KPI Dashboard</div>
-            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;">
-                <div style="background: #34495e; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid #7f8c8d; cursor: help;" title="${labels.tooltip}">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #bdc3c7; text-transform: uppercase;">${labels.avg}</div>
-                    <div style="font-size: 11px; font-weight: 600;">${avgMetric}</div>
-                </div>
-                <div style="background: #34495e; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid #7f8c8d; cursor: help;" title="Scontrino medio globale. Calcolo: Totale vendite / Totale transazioni. Indica quanto spende in media ogni cliente. Target tipico: €50-€80.">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #bdc3c7; text-transform: uppercase;">Avg Ticket</div>
-                    <div style="font-size: 11px; font-weight: 600;">€${globalAvgTicket.toFixed(0)}</div>
-                </div>
-                <div style="background: #34495e; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid #7f8c8d; cursor: help;" title="Units Per Transaction (Pezzi per scontrino). Calcolo: Totale quantità venduta / Totale transazioni. Indica quanti articoli vengono venduti per ogni transazione. Target: >2.0 per cross-selling efficace.">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #bdc3c7; text-transform: uppercase;">Avg UPT</div>
-                    <div style="font-size: 11px; font-weight: 600;">${globalUPT.toFixed(2)}</div>
-                </div>
-                <div style="background: ${avgGrowth >= 0 ? '#27ae60' : '#c0392b'}; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid ${avgGrowth >= 0 ? '#229954' : '#a93226'}; cursor: help;" title="Crescita media delle vendite tra primo e ultimo periodo selezionato. Verde = crescita positiva, Rosso = declino. Calcola il trend medio di performance del team nel tempo.">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #ecf0f1; text-transform: uppercase;">Avg Growth</div>
-                    <div style="font-size: 11px; font-weight: 600;">${avgGrowth >= 0 ? '+' : ''}${avgGrowth.toFixed(1)}%</div>
-                </div>
-                <div style="background: #34495e; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid #7f8c8d; cursor: help;" title="Coefficiente di Variazione (CV) - Misura la regolarità delle performance. Più basso = più consistente/affidabile. CV < 20% = Ottimo | 20-40% = Buono | >40% = Alta variabilità. Dipendenti consistenti sono più prevedibili e gestibili.">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #bdc3c7; text-transform: uppercase;">Consistency</div>
-                    <div style="font-size: 11px; font-weight: 600;">${avgConsistency.toFixed(1)}% CV</div>
-                </div>
-                <div style="background: #f39c12; padding: 6px 8px; border-radius: 2px; text-align: center; border: 1px solid #d68910; cursor: help;" title="Top performer basato sul ranking mode attivo (${metricLabel}). Cambia quando selezioni Absolute/Efficiency/Performance Index/Equity Score.">
-                    <div style="font-size: 7px; opacity: 0.9; margin-bottom: 2px; color: #ecf0f1; text-transform: uppercase;">Top Performer</div>
-                    <div style="font-size: 10px; font-weight: 600;">${topPerformer.employee.substring(0,12)}</div>
-                    <div style="font-size: 9px; opacity: 0.9; color: #ecf0f1;">${metricValue}</div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('employeeMultiKpiDashboard').innerHTML = html;
-}
-
 // Helper functions for growth display
 function getConfidenceIndicator(emp) {
     if (!emp.growthConfidence || emp.growth == null) return '';
@@ -15491,9 +15269,8 @@ function renderEmployeeTableView() {
     // Insert narrative dashboard BEFORE the table
     document.getElementById('employeeAnalysisContainer').innerHTML = narrativeDashboard + html;
 
-    // Save calculated performances globally and update dashboard
+    // Save calculated performances globally
     employeePerformancesGlobal = filteredPerformances;
-    renderEmployeeMultiKpiDashboard(filteredPerformances);
 }
 
 // Sort employee table
@@ -16411,9 +16188,6 @@ function applyEmployeeAdvancedFilters() {
     } else if (employeeCurrentView === 'ranking') {
         renderEmployeeRankingView();
     }
-
-    // Re-render KPI dashboard
-    renderEmployeeMultiKpiDashboard();
 }
 
 function resetEmployeeAdvancedFilters() {
@@ -16461,8 +16235,6 @@ function resetEmployeeAdvancedFilters() {
         } else if (employeeCurrentView === 'ranking') {
             renderEmployeeRankingView();
         }
-
-        renderEmployeeMultiKpiDashboard();
 
         // Update summary
         document.getElementById('empFilterSummary').innerHTML = `
