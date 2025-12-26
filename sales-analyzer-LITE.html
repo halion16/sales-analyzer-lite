@@ -14779,7 +14779,8 @@ function renderEmployeeTableView() {
                 totalSales: 0,
                 totalTransactions: 0,
                 totalQty: 0,
-                shopDetails: []
+                shopDetails: [],
+                weeklyHours: empShop.weeklyHours || 40 // Capture weekly hours from HR data
             };
         }
 
@@ -14917,6 +14918,7 @@ function renderEmployeeTableView() {
             shops: emp.shops,
             shopDetails: emp.shopDetails,
             periods: emp.periods, // PHASE 2 FIX: Include periods for sparkline rendering
+            weeklyHours: emp.weeklyHours, // PDF FIX: Include weekly hours from HR data
             totalSales: emp.totalSales,
             totalTransactions: emp.totalTransactions,
             totalQty: emp.totalQty,
