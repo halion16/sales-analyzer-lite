@@ -14091,17 +14091,32 @@ function renderSparkline(periods, periodList, employeeName) {
     }).join(' ');
 
     // Determine trend color using LINEAR REGRESSION (consistent with modal)
-    const n = values.length;
-    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    values.forEach((y, x) => {
-        sumX += x;
-        sumY += y;
-        sumXY += x * y;
-        sumX2 += x * x;
-    });
-    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const trendUp = slope > 0;
-    const strokeColor = slope > 0 ? '#27ae60' : slope < 0 ? '#e74c3c' : '#3498db';
+    let strokeColor = '#3498db'; // Default neutral color
+    try {
+        const n = values.length;
+        if (n >= 2) { // Need at least 2 points for regression
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            values.forEach((y, x) => {
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumX2 += x * x;
+            });
+            const denominator = (n * sumX2 - sumX * sumX);
+            if (denominator !== 0) {
+                const slope = (n * sumXY - sumX * sumY) / denominator;
+                if (!isNaN(slope) && isFinite(slope)) {
+                    strokeColor = slope > 0 ? '#27ae60' : slope < 0 ? '#e74c3c' : '#3498db';
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('Sparkline regression failed:', error);
+        // Fallback to simple first-last comparison
+        const firstVal = values[0];
+        const lastVal = values[values.length - 1];
+        strokeColor = lastVal > firstVal ? '#27ae60' : lastVal < firstVal ? '#e74c3c' : '#3498db';
+    }
 
     // Create tooltip text
     const tooltipText = recentPeriods.map((p, i) =>
@@ -14794,39 +14809,73 @@ function renderEmployeeTableView() {
         const avgTicket = emp.totalSales / emp.totalTransactions;
         const upt = emp.totalQty / emp.totalTransactions;
 
-        // Growth calculation - USE NEW SMART FUNCTION
+        // Growth calculation - LINEAR REGRESSION (consistent with sparkline/modal)
         const periodsWithData = Object.keys(emp.periods).sort();
 
-        // Calculate network context for dynamic threshold
-        const totalNetworkSales = Object.values(aggregatedEmployees).reduce((sum, e) => sum + e.totalSales, 0);
-        const avgNetworkSales = totalNetworkSales / Object.values(aggregatedEmployees).length / periods.length;
-        const networkContext = {
-            avgEmployeeSales: avgNetworkSales,
-            totalEmployees: Object.values(aggregatedEmployees).length,
-            totalPeriods: periods.length
-        };
+        // Calculate growth using LINEAR REGRESSION
+        let growth = null;
+        let growthConfidence = null;
+        let growthReason = null;
 
-        // YoY FIXED: Use true Year-over-Year growth calculation
-        const yoyGrowthResult = calculateYoYGrowth(emp.periods, periodsWithData);
-        const legacyGrowthResult = calculateEmployeeGrowth(emp.periods, periodsWithData, networkContext);
+        if (periodsWithData.length >= 3) {
+            const values = periodsWithData.map(p => emp.periods[p].sales);
+            const n = values.length;
 
-        // Prefer YoY if available, fall back to legacy method
-        const growthResult = yoyGrowthResult.growth !== null ? yoyGrowthResult : legacyGrowthResult;
-        const growth = growthResult.growth != null ? growthResult.growth : null;
-        const growthConfidence = growthResult.confidence;
-        const growthReason = growthResult.reason;
+            try {
+                let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+                values.forEach((y, x) => {
+                    sumX += x;
+                    sumY += y;
+                    sumXY += x * y;
+                    sumX2 += x * x;
+                });
+
+                const denominator = (n * sumX2 - sumX * sumX);
+                if (denominator !== 0) {
+                    const slope = (n * sumXY - sumX * sumY) / denominator;
+                    const intercept = (sumY - slope * sumX) / n;
+
+                    const trendStart = intercept;
+                    const trendEnd = slope * (n - 1) + intercept;
+
+                    if (trendStart > 0 && isFinite(slope) && isFinite(intercept)) {
+                        growth = ((trendEnd - trendStart) / trendStart * 100);
+
+                        // Calculate R² for confidence
+                        const yMean = sumY / n;
+                        let ssTotal = 0, ssResidual = 0;
+                        values.forEach((y, x) => {
+                            const yPredicted = slope * x + intercept;
+                            ssTotal += Math.pow(y - yMean, 2);
+                            ssResidual += Math.pow(y - yPredicted, 2);
+                        });
+                        const rSquared = ssTotal > 0 ? 1 - (ssResidual / ssTotal) : 0;
+
+                        // Map R² to confidence level
+                        if (rSquared >= 0.7) growthConfidence = 'high';
+                        else if (rSquared >= 0.4) growthConfidence = 'medium';
+                        else growthConfidence = 'low';
+                    } else {
+                        growthReason = 'low-baseline-sales';
+                    }
+                } else {
+                    growthReason = 'calculation-error';
+                }
+            } catch (error) {
+                console.warn(`Linear regression failed for ${emp.employee}:`, error);
+                growthReason = 'calculation-error';
+            }
+        } else {
+            growthReason = 'insufficient-periods';
+        }
 
         // Debug logging for anomalous or null growth values
         if ((growth != null && Math.abs(growth) > 500) || emp.employee.toLowerCase().includes('moraschi') || growth === null) {
-            console.log(`🔍 GROWTH ANALYSIS: ${emp.employee}`);
+            console.log(`🔍 GROWTH ANALYSIS (LINEAR REGRESSION): ${emp.employee}`);
             console.log(`   Growth: ${growth != null ? growth.toFixed(1) + '%' : 'N/A'}`);
             console.log(`   Confidence: ${growthConfidence || 'none'}`);
-            console.log(`   Reason: ${growthReason || 'calculated'}`);
+            console.log(`   Reason: ${growthReason || 'linear-regression-calculated'}`);
             console.log(`   Periods: ${periodsWithData.length}`);
-            if (growthResult.baselineSales) {
-                console.log(`   Baseline Avg: €${growthResult.baselineSales.toFixed(2)}`);
-                console.log(`   Current Avg: €${growthResult.currentSales.toFixed(2)}`);
-            }
             console.log(`   Shops: ${Array.from(emp.shops).join(', ')}`);
         }
 
