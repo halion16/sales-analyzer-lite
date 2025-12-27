@@ -3202,8 +3202,6 @@ Dipendente con 3 mesi maternità:
         let showOnlyActiveEmployees = true; // Filter toggle
         let employeeRankingMode = 'fairScore'; // LITE VERSION: Always uses Fair Score (auto mode) - comprehensive A/B/C/D rating
 
-        // PHASE 3: COMPOSITE SCORE FILTERS (Employee-Centric decisional filters)
-        let compositeScoreFilter = 'all'; // 'all', 'top10', 'bottom10', 'range75-100'
         const STORAGE_KEY_EMPLOYEE_CONFIG = 'salesAnalyzerEmployeeConfig_v1';
         const ACTIVE_DETECTION_MONTHS = 3; // Consider active if has data in last N months
 
@@ -3584,6 +3582,28 @@ Dipendente con 3 mesi maternità:
 
             console.log(`✅ Shop ${shop.active ? 'activated' : 'deactivated'}: ${shop.code} - ${shop.name}`);
             return shop;
+        }
+
+        /**
+         * Toggle Data Quality Warning banner visibility
+         */
+        function toggleDataQualityWarning() {
+            const content = document.getElementById('dataQualityWarningContent');
+            const icon = document.getElementById('dataQualityWarningIcon');
+
+            if (!content || !icon) return;
+
+            if (content.style.display === 'none') {
+                // Expand
+                content.style.display = 'block';
+                icon.textContent = '▼';
+                icon.style.transform = 'rotate(0deg)';
+            } else {
+                // Collapse
+                content.style.display = 'none';
+                icon.textContent = '▶';
+                icon.style.transform = 'rotate(-90deg)';
+            }
         }
 
         /**
@@ -8610,10 +8630,9 @@ let employeeAdvancedFilters = {
     growthCondition: 'all',
     avgTicketMin: null,
     avgTicketMax: null,
-    // quartile removed - redundant with Composite Score dropdown
+    // quartile removed - redundant with rating dropdown
     uptMin: null,
     uptMax: null,
-    compositeScoreTier: 'all', // Changed from min/max to predefined tiers
     cohortRankMin: null,
     cohortRankMax: null,
     trend6M: 'all',
@@ -14491,63 +14510,72 @@ function generateNarrativeDashboard(employees, teamMetrics) {
         let summary = '';
         const rating = emp.fairScore >= 75 ? 'A' : emp.fairScore >= 55 ? 'B' : emp.fairScore >= 40 ? 'C' : 'D';
         const growth = emp.growth != null ? emp.growth : null; // FIX: Don't convert null to 0
-        const hasGrowthData = growth !== null;
+
+        // TIER-AWARE: Check if growth is statistically valid
+        const hasValidGrowth = emp.dataTier?.hasValidGrowth && growth !== null;
+        const tier = emp.dataTier?.tier || 'A';
+        const periodsActive = emp.dataTier?.periodsActive || 0;
+
         const vsTeam = ((emp.totalSales - avgSales) / avgSales * 100).toFixed(0);
         const salesRank = employees.filter(e => e.totalSales > emp.totalSales).length + 1;
         const totalEmployees = employees.length;
 
-        // IMPROVED LOGIC: Use multiple metrics, handle missing growth data
+        // TIER-AWARE LOGIC: Add disclaimers for TIER C/D employees
+        const tierDisclaimer = tier === 'C' ? ` [⚠️ Dati parziali: ${periodsActive}m - metriche limitate]` :
+                              tier === 'D' ? ` [❌ Dati insufficienti: ${periodsActive}m - valutazione preliminare]` : '';
+
+        // IMPROVED LOGIC: Use multiple metrics, handle tier-aware growth data
         if (rating === 'A') {
-            if (hasGrowthData && growth > 20) {
-                summary = `Top performer in forte crescita (+${growth.toFixed(0)}%), candidato per mentoring team`;
-            } else if (hasGrowthData && growth > 0) {
-                summary = `Top performer stabile (+${growth.toFixed(0)}% growth), mantiene eccellenti performance`;
-            } else if (hasGrowthData && growth < -10) {
-                summary = `Top performer in calo (${growth.toFixed(0)}%), verificare cause e supportare`;
-            } else if (!hasGrowthData && parseInt(vsTeam) > 20) {
-                summary = `Top performer (#${salesRank}/${totalEmployees}), molto sopra media team (+${vsTeam}%)`;
-            } else if (!hasGrowthData) {
-                summary = `Top performer, ${vsTeam > 0 ? '+' : ''}${vsTeam}% vs media team - eccellente contributo`;
+            if (hasValidGrowth && growth > 20) {
+                summary = `Top performer in forte crescita (+${growth.toFixed(0)}%), candidato per mentoring team${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth > 0) {
+                summary = `Top performer stabile (+${growth.toFixed(0)}% growth), mantiene eccellenti performance${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth < -10) {
+                summary = `Top performer in calo (${growth.toFixed(0)}%), verificare cause e supportare${tierDisclaimer}`;
+            } else if (!hasValidGrowth && parseInt(vsTeam) > 20) {
+                summary = `Top performer (#${salesRank}/${totalEmployees}), molto sopra media team (+${vsTeam}%)${tierDisclaimer}`;
+            } else if (!hasValidGrowth) {
+                summary = `Top performer, ${vsTeam > 0 ? '+' : ''}${vsTeam}% vs media team - eccellente contributo${tierDisclaimer}`;
             } else {
-                summary = `Top performer stabile, mantiene solide performance (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+                summary = `Top performer stabile, mantiene solide performance (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)${tierDisclaimer}`;
             }
         } else if (rating === 'B') {
-            if (hasGrowthData && growth > 10) {
-                summary = `Performance solida e in crescita (+${growth.toFixed(0)}%), potenziale futuro top performer`;
-            } else if (hasGrowthData && growth > 0) {
-                summary = `Performance buona e stabile (+${growth.toFixed(0)}% growth), continua così`;
-            } else if (hasGrowthData && growth < -10) {
-                summary = `Performance cala (${growth.toFixed(0)}%), serve supporto entro 2 settimane`;
-            } else if (!hasGrowthData && parseInt(vsTeam) > 0) {
-                summary = `Performance sopra media team (#${salesRank}/${totalEmployees}, +${vsTeam}%), buon contributo`;
-            } else if (!hasGrowthData && parseInt(vsTeam) < -10) {
-                summary = `Performance sotto media team (${vsTeam}%), analizzare gap e supportare`;
-            } else if (!hasGrowthData) {
-                summary = `Performance in linea con media team, mantenere standard attuali`;
+            if (hasValidGrowth && growth > 10) {
+                summary = `Performance solida e in crescita (+${growth.toFixed(0)}%), potenziale futuro top performer${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth > 0) {
+                summary = `Performance buona e stabile (+${growth.toFixed(0)}% growth), continua così${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth < -10) {
+                summary = `Performance cala (${growth.toFixed(0)}%), serve supporto entro 2 settimane${tierDisclaimer}`;
+            } else if (!hasValidGrowth && parseInt(vsTeam) > 0) {
+                summary = `Performance sopra media team (#${salesRank}/${totalEmployees}, +${vsTeam}%), buon contributo${tierDisclaimer}`;
+            } else if (!hasValidGrowth && parseInt(vsTeam) < -10) {
+                summary = `Performance sotto media team (${vsTeam}%), analizzare gap e supportare${tierDisclaimer}`;
+            } else if (!hasValidGrowth) {
+                summary = `Performance in linea con media team, mantenere standard attuali${tierDisclaimer}`;
             } else {
-                summary = `Performance stabile nella media (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)`;
+                summary = `Performance stabile nella media (${vsTeam > 0 ? '+' : ''}${vsTeam}% vs team)${tierDisclaimer}`;
             }
         } else if (rating === 'C') {
             if (emp.cohort && emp.cohort.symbol === 'L1') {
-                summary = `Nuovo assunto (${emp.cohort.label}), performance sotto media è normale - continuare affiancamento`;
-            } else if (hasGrowthData && growth > 5) {
-                summary = `In difficoltà ma mostra miglioramento (+${growth.toFixed(0)}%), intensificare coaching`;
-            } else if (hasGrowthData && growth < -5) {
-                summary = `Performance sotto media e in calo (${growth.toFixed(0)}%), programmare 1-on-1 urgente`;
-            } else if (!hasGrowthData) {
-                summary = `Performance sotto media (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), serve coaching`;
+                summary = `Nuovo assunto (${emp.cohort.label}), performance sotto media è normale - continuare affiancamento${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth > 5) {
+                summary = `In difficoltà ma mostra miglioramento (+${growth.toFixed(0)}%), intensificare coaching${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth < -5) {
+                summary = `Performance sotto media e in calo (${growth.toFixed(0)}%), programmare 1-on-1 urgente${tierDisclaimer}`;
+            } else if (!hasValidGrowth) {
+                summary = `Performance sotto media (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), serve coaching${tierDisclaimer}`;
             } else {
-                summary = `Performance sotto media ma stabile, necessario supporto continuo`;
+                summary = `Performance sotto media ma stabile, necessario supporto continuo${tierDisclaimer}`;
             }
         } else { // D
             if (emp.cohort && emp.cohort.symbol === 'L1') {
-                summary = `Nuovo assunto con difficoltà iniziali - assegnare mentor esperto immediato`;
-            } else if (hasGrowthData && growth < -20) {
-                summary = `Situazione critica in rapido peggioramento (${growth.toFixed(0)}%), azione immediata necessaria`;
-            } else if (!hasGrowthData) {
-                summary = `Performance critica (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), piano di recupero urgente`;
+                summary = `Nuovo assunto con difficoltà iniziali - assegnare mentor esperto immediato${tierDisclaimer}`;
+            } else if (hasValidGrowth && growth < -20) {
+                summary = `Situazione critica in rapido peggioramento (${growth.toFixed(0)}%), azione immediata necessaria${tierDisclaimer}`;
+            } else if (!hasValidGrowth) {
+                summary = `Performance critica (#${salesRank}/${totalEmployees}, ${vsTeam}% vs team), piano di recupero urgente${tierDisclaimer}`;
             } else {
-                summary = `Situazione critica, azione correttiva immediata necessaria`;
+                summary = `Situazione critica, azione correttiva immediata necessaria${tierDisclaimer}`;
             }
         }
 
@@ -14940,6 +14968,205 @@ function renderEmployeeTableView() {
         };
     });
 
+    // ============================================================================
+    // DATA QUALITY TIER SYSTEM
+    // Implements statistical validity framework for employee comparisons
+    // ============================================================================
+
+    /**
+     * Calculate Data Quality Tier for employee
+     * @param {Object} emp - Employee performance object
+     * @param {Array} allPeriods - All available periods
+     * @returns {Object} Tier information
+     */
+    function calculateDataQualityTier(emp, allPeriods) {
+        const periodsWithData = Object.keys(emp.periods).sort();
+        const totalPeriods = allPeriods.length;
+        const periodsActive = periodsWithData.length;
+
+        // Calculate gap percentage (continuity)
+        let gapCount = 0;
+        for (let i = 0; i < periodsWithData.length - 1; i++) {
+            const currentIdx = allPeriods.indexOf(periodsWithData[i]);
+            const nextIdx = allPeriods.indexOf(periodsWithData[i + 1]);
+            if (nextIdx - currentIdx > 1) {
+                gapCount += (nextIdx - currentIdx - 1);
+            }
+        }
+        const gapPercentage = periodsActive > 0 ? (gapCount / periodsActive) * 100 : 0;
+
+        // Check seasonality coverage (has data across different seasons)
+        const monthsPresent = new Set(periodsWithData.map(p => {
+            const [year, month] = p.split('-');
+            return parseInt(month);
+        }));
+        const hasSummerWinter = (monthsPresent.has(6) || monthsPresent.has(7) || monthsPresent.has(8)) &&
+                                (monthsPresent.has(12) || monthsPresent.has(1) || monthsPresent.has(2));
+
+        // Tier classification
+        let tier = 'D';
+        let tierLabel = '';
+        let tierColor = '';
+        let tierDescription = '';
+        let isRankable = false;
+        let hasValidGrowth = false;
+        let recommendedMetrics = [];
+
+        if (periodsActive >= 10 && gapPercentage < 10 && hasSummerWinter) {
+            // TIER A - Ranking Affidabile
+            tier = 'A';
+            tierLabel = 'Dati Completi';
+            tierColor = '#27ae60';
+            tierDescription = 'Ranking affidabile - dati completi su ciclo stagionale';
+            isRankable = true;
+            hasValidGrowth = true;
+            recommendedMetrics = ['totalSales', 'growth', 'avgTicket', 'upt', 'rating'];
+        } else if (periodsActive >= 6 && gapPercentage < 20) {
+            // TIER B - Ranking Condizionato
+            tier = 'B';
+            tierLabel = 'Dati Buoni';
+            tierColor = '#3498db';
+            tierDescription = 'Ranking valido con aggiustamento stagionale';
+            isRankable = true;
+            hasValidGrowth = true;
+            recommendedMetrics = ['totalSales', 'growth', 'avgTicket', 'upt', 'rating'];
+        } else if (periodsActive >= 3 && periodsActive < 6) {
+            // TIER C - Solo Metriche Immediate
+            tier = 'C';
+            tierLabel = 'Dati Parziali';
+            tierColor = '#f39c12';
+            tierDescription = 'Solo metriche transazionali - trend non affidabile';
+            isRankable = false;
+            hasValidGrowth = false;
+            recommendedMetrics = ['avgTicket', 'upt']; // NO totalSales, NO growth
+        } else {
+            // TIER D - Dati Insufficienti
+            tier = 'D';
+            tierLabel = 'Dati Insufficienti';
+            tierColor = '#e74c3c';
+            tierDescription = 'Dati insufficienti per valutazione';
+            isRankable = false;
+            hasValidGrowth = false;
+            recommendedMetrics = ['avgTicket']; // Solo metrica più stabile
+        }
+
+        return {
+            tier,
+            tierLabel,
+            tierColor,
+            tierDescription,
+            isRankable,
+            hasValidGrowth,
+            recommendedMetrics,
+            periodsActive,
+            gapPercentage: gapPercentage.toFixed(1),
+            hasSummerWinter,
+            monthsCovered: monthsPresent.size
+        };
+    }
+
+    /**
+     * Calculate Seasonality Index from TIER A employees
+     * @param {Array} tierAEmployees - Employees with TIER A data
+     * @param {Array} allPeriods - All periods
+     * @returns {Object} Seasonality index by period
+     */
+    function calculateSeasonalityIndex(tierAEmployees, allPeriods) {
+        if (tierAEmployees.length === 0) {
+            console.warn('⚠️ No TIER A employees for seasonality calculation - using neutral index');
+            const neutralIndex = {};
+            allPeriods.forEach(p => neutralIndex[p] = 1.0);
+            return neutralIndex;
+        }
+
+        // Calculate average sales per period across TIER A employees
+        const periodSales = {};
+        allPeriods.forEach(period => {
+            const salesInPeriod = tierAEmployees
+                .filter(emp => emp.periods[period])
+                .map(emp => emp.periods[period].sales);
+
+            if (salesInPeriod.length > 0) {
+                periodSales[period] = salesInPeriod.reduce((a, b) => a + b, 0) / salesInPeriod.length;
+            }
+        });
+
+        // Calculate overall average
+        const overallAvg = Object.values(periodSales).reduce((a, b) => a + b, 0) / Object.values(periodSales).length;
+
+        // Create seasonality index (ratio of period avg to overall avg)
+        const seasonalityIndex = {};
+        allPeriods.forEach(period => {
+            if (periodSales[period]) {
+                seasonalityIndex[period] = periodSales[period] / overallAvg;
+            } else {
+                seasonalityIndex[period] = 1.0; // Neutral for missing periods
+            }
+        });
+
+        console.log(`📊 Seasonality Index calculated from ${tierAEmployees.length} TIER A employees`);
+
+        return seasonalityIndex;
+    }
+
+    /**
+     * Apply Seasonality Adjustment to employee sales
+     * @param {Object} emp - Employee object
+     * @param {Object} seasonalityIndex - Seasonality index
+     * @returns {Object} Adjusted metrics
+     */
+    function applySeasonalityAdjustment(emp, seasonalityIndex) {
+        let adjustedTotalSales = 0;
+        let adjustedTransactions = 0;
+        let adjustedQty = 0;
+
+        Object.keys(emp.periods).forEach(period => {
+            const periodData = emp.periods[period];
+            const index = seasonalityIndex[period] || 1.0;
+
+            // Adjust by dividing by seasonality index
+            // If period has 1.2x seasonality, divide by 1.2 to normalize
+            adjustedTotalSales += periodData.sales / index;
+            adjustedTransactions += periodData.transactions; // Don't adjust transactions
+            adjustedQty += periodData.qty; // Don't adjust quantity
+        });
+
+        return {
+            adjustedTotalSales,
+            adjustedTransactions,
+            adjustedQty,
+            adjustedAvgTicket: adjustedTotalSales / adjustedTransactions,
+            adjustedUpt: adjustedQty / adjustedTransactions
+        };
+    }
+
+    // Calculate tiers for all employees
+    const allPeriods = periods; // From outer scope
+    employeePerformances.forEach(emp => {
+        const tierInfo = calculateDataQualityTier(emp, allPeriods);
+        emp.dataTier = tierInfo;
+    });
+
+    // Identify TIER A employees for seasonality calculation
+    const tierAEmployees = employeePerformances.filter(emp => emp.dataTier.tier === 'A');
+
+    // Calculate seasonality index from TIER A employees
+    const seasonalityIndex = calculateSeasonalityIndex(tierAEmployees, allPeriods);
+
+    console.log(`📊 Seasonality Index by Period:`, seasonalityIndex);
+
+    // Apply seasonality adjustment to TIER B/C employees
+    employeePerformances.forEach(emp => {
+        if (emp.dataTier.tier === 'B' || emp.dataTier.tier === 'C') {
+            const adjusted = applySeasonalityAdjustment(emp, seasonalityIndex);
+            emp.seasonalityAdjusted = adjusted;
+
+            console.log(`📊 Seasonality Adjustment for ${emp.employee} (${emp.dataTier.tier}):`,
+                `Original: €${emp.totalSales.toFixed(0)} → Adjusted: €${adjusted.adjustedTotalSales.toFixed(0)}`
+            );
+        }
+    });
+
     // Filter by active status if enabled (same as shop-centric)
     let filteredPerformances = employeePerformances;
     if (showOnlyActiveEmployees) {
@@ -14984,18 +15211,11 @@ function renderEmployeeTableView() {
     console.log(`[SKILL RANK] Calculated GLOBAL skill rank for ${allEmployeesSorted.length} employees (eliminates small cohort bias)`);
 
     // ============================================================================
-    // CRITICAL: Calculate FIXED team averages using ACTIVE employees only
-    // These values are used as stable baseline for "Performance vs Team %" metric
-    // and should NOT be recalculated after UI filters are applied
+    // TEAM AVERAGES (LITE VERSION - SIMPLIFIED)
     // ============================================================================
-    const FIXED_teamAvgSales = filteredPerformances.reduce((sum, e) => sum + e.totalSales, 0) / filteredPerformances.length;
-    const FIXED_teamAvgTicket = filteredPerformances.reduce((sum, e) => sum + e.avgTicket, 0) / filteredPerformances.length;
-    const FIXED_teamAvgUPT = filteredPerformances.reduce((sum, e) => sum + e.upt, 0) / filteredPerformances.length;
-
-    // Working variables for Composite Score calculation (can be recalculated)
-    let teamAvgSales = FIXED_teamAvgSales;
-    let teamAvgTicket = FIXED_teamAvgTicket;
-    let teamAvgUPT = FIXED_teamAvgUPT;
+    const teamAvgSales = filteredPerformances.reduce((sum, e) => sum + e.totalSales, 0) / filteredPerformances.length;
+    const teamAvgTicket = filteredPerformances.reduce((sum, e) => sum + e.avgTicket, 0) / filteredPerformances.length;
+    const teamAvgUPT = filteredPerformances.reduce((sum, e) => sum + e.upt, 0) / filteredPerformances.length;
 
     // Calculate team MEDIAN sales per period (for consistency threshold)
     const allAvgSalesPerPeriod = filteredPerformances.map(e => e.totalSales / e.periodsActive);
@@ -15045,53 +15265,9 @@ function renderEmployeeTableView() {
         growth: `${teamAveragesForFairScore.growth.toFixed(1)}%`
     });
 
-    // PHASE 3B: Calculate Composite Score for each employee (strategic HR decisions)
-    // DEBUG: Track min score to investigate INSUFFICIENTE issue
-    let minScore = 100;
-    let minScoreEmployee = null;
-
+    // Calculate Fair Score for each employee (LITE VERSION - PRIMARY RANKING)
     filteredPerformances.forEach(emp => {
-        // HYBRID PERFORMANCE INDEX: Balance absolute contribution and efficiency
-        // 60% Absolute Contribution (real impact on revenue) + 40% Efficiency (quality per hour)
-        // This prioritizes actual business impact while still rewarding efficient workers
-
-        // Component 1: Absolute Contribution (raw sales vs team average)
-        const absolutePI = teamAvgSales > 0
-            ? (emp.totalSales / teamAvgSales) * 100
-            : 70;
-
-        // Component 2: Efficiency Score (FTE-adjusted from normalizedMetrics)
-        // NOTE: normalizedMetrics.performanceIndex is NOT a percentage, it's raw (sales/adjustmentFactor)
-        // We need to normalize it by comparing to team average performanceIndex
-        const rawEfficiencyPI = emp.normalizedMetrics?.performanceIndex || 70;
-
-        // Calculate team average efficiency PI for normalization (only once, outside loop would be better but ok here)
-        const teamAvgEfficiencyPI = filteredPerformances.reduce((sum, e) =>
-            sum + (e.normalizedMetrics?.performanceIndex || 0), 0) / filteredPerformances.length;
-
-        // Normalize efficiency to 0-200 scale (100 = team average)
-        const efficiencyPI = teamAvgEfficiencyPI > 0
-            ? (rawEfficiencyPI / teamAvgEfficiencyPI) * 100
-            : 100;
-
-        // Hybrid PI: 60% absolute contribution + 40% efficiency
-        const performanceIndex = (absolutePI * 0.60) + (efficiencyPI * 0.40);
-
-        // Debug log for verification
-        if (emp.normalizedMetrics?.performanceIndex) {
-            const fteRatio = emp.normalizedMetrics?.fteRatio || 1.0;
-            console.log(`[HYBRID PI] ${emp.employee}: Absolute=${absolutePI.toFixed(1)} (60%) + Efficiency=${efficiencyPI.toFixed(0)} (40%, FTE=${(fteRatio*100).toFixed(0)}%) → Hybrid=${performanceIndex.toFixed(1)}`);
-        }
-
-        const compositeScoreData = calculateCompositeScore({
-            performanceIndex: performanceIndex,
-            growthVelocity: emp.growthVelocity,
-            consistencyScore: emp.consistencyScore,
-            skillRank: emp.skillRank || 50
-        });
-        emp.compositeScore = compositeScoreData;
-
-        // PHASE 3C: Calculate Fair Score (NEW - 4th ranking mode)
+        // TIER-AWARE: Pass tier info and seasonality-adjusted metrics
         const periodsWithData = Object.keys(emp.periods || {}).sort();
         const empDataForFairScore = {
             name: emp.employee,
@@ -15108,111 +15284,18 @@ function renderEmployeeTableView() {
             emp.avgTicket,
             emp.upt,
             emp.tenure,
-            teamAveragesForFairScore
+            teamAveragesForFairScore,
+            emp.dataTier, // NEW: Pass tier information
+            emp.seasonalityAdjusted // NEW: Pass seasonality-adjusted metrics
         );
 
         emp.fairScore = fairScoreValue;
 
         console.log(`[FAIR SCORE] ${emp.employee}: ${fairScoreValue.toFixed(1)}/100 (Sales/h: €${emp.normalizedMetrics?.salesPerHour?.toFixed(0) || 0}, Growth: ${emp.growth != null ? emp.growth.toFixed(1) : 'N/A'}%, Tenure: ${emp.tenure?.tenureMonths || 0}m)`);
-
-        // Track minimum
-        if (compositeScoreData.score < minScore) {
-            minScore = compositeScoreData.score;
-            minScoreEmployee = {
-                name: emp.employee,
-                score: compositeScoreData.score,
-                rating: compositeScoreData.rating,
-                usedFallbackPI: false, // Now always using calculated ratio
-                rawPI: emp.normalizedMetrics?.performanceIndex,
-                usedPI: performanceIndex,
-                growthMonthly: emp.growthVelocity?.monthlyGrowth,
-                hasGrowthData: emp.growthVelocity?.hasData,
-                cv: emp.consistencyScore,
-                skillPct: emp.skillRank,
-                breakdown: compositeScoreData.breakdown,
-                totalSales: emp.totalSales,
-                teamAvgSales: teamAvgSales
-            };
-        }
     });
 
-    // Log the worst performer
-    console.log('=== COMPOSITE SCORE ANALYSIS ===');
-    console.log('Minimum Score Found:', minScore);
-    console.log('Worst Performer:', minScoreEmployee);
-    console.log('Expected INSUFFICIENTE threshold: <35');
-
-    // Calculate rating distribution (6 levels)
-    const ratingDistribution = {
-        ECCELLENTE: 0,
-        'MOLTO BUONO': 0,
-        BUONO: 0,
-        DISCRETO: 0,  // NEW
-        SUFFICIENTE: 0,
-        INSUFFICIENTE: 0
-    };
-    filteredPerformances.forEach(emp => {
-        ratingDistribution[emp.compositeScore.rating]++;
-    });
-    console.log('Rating Distribution:', ratingDistribution);
-    console.log('Total Employees:', filteredPerformances.length);
-
-    // Show bottom 5 scores
-    const sortedByScore = [...filteredPerformances].sort((a, b) => a.compositeScore.score - b.compositeScore.score);
-    console.log('Bottom 5 Performers:');
-    sortedByScore.slice(0, 5).forEach((emp, idx) => {
-        console.log(`  ${idx + 1}. ${emp.employee}: ${emp.compositeScore.score} (${emp.compositeScore.rating})`);
-    });
-    console.log('================================');
-
-    // PHASE 3: Apply Composite Score filter (decisional filters for HR)
-    console.log(`[FILTER] Composite Score Filter: "${compositeScoreFilter}" | Employees before filter: ${filteredPerformances.length}`);
-
-    if (compositeScoreFilter !== 'all') {
-        if (compositeScoreFilter === 'top10') {
-            // Top 10% by Composite Score
-            const sortedByScore = [...filteredPerformances].sort((a, b) => b.compositeScore.score - a.compositeScore.score);
-            const top10Count = Math.ceil(sortedByScore.length * 0.10);
-            const top10Threshold = sortedByScore[top10Count - 1]?.compositeScore.score || 0;
-            console.log(`[FILTER] Top 10%: Threshold=${top10Threshold.toFixed(1)}, Count=${top10Count}`);
-            filteredPerformances = filteredPerformances.filter(emp => emp.compositeScore.score >= top10Threshold);
-        } else if (compositeScoreFilter === 'bottom10') {
-            // Bottom 10% by Composite Score
-            const sortedByScore = [...filteredPerformances].sort((a, b) => a.compositeScore.score - b.compositeScore.score);
-            const bottom10Count = Math.ceil(sortedByScore.length * 0.10);
-            const bottom10Threshold = sortedByScore[bottom10Count - 1]?.compositeScore.score || 0;
-            console.log(`[FILTER] Bottom 10%: Threshold=${bottom10Threshold.toFixed(1)}, Count=${bottom10Count}`);
-            filteredPerformances = filteredPerformances.filter(emp => emp.compositeScore.score <= bottom10Threshold);
-        } else if (compositeScoreFilter === 'range75-100') {
-            // Score range 75-100
-            console.log(`[FILTER] Range 75-100: Filtering employees with score >= 75 && <= 100`);
-            filteredPerformances = filteredPerformances.filter(emp => emp.compositeScore.score >= 75 && emp.compositeScore.score <= 100);
-        }
-    }
-
-    console.log(`[FILTER] Employees after filter: ${filteredPerformances.length}`);
-
-    // PHASE 4: Apply Advanced Filters from employeeAdvancedFilters object
+    // Apply Advanced Filters from employeeAdvancedFilters object
     console.log(`[FILTER] Applying Advanced Filters...`);
-
-    // Composite Score Tier filter (predefined ranges)
-    if (employeeAdvancedFilters.compositeScoreTier !== 'all') {
-        const beforeCount = filteredPerformances.length;
-        filteredPerformances = filteredPerformances.filter(emp => {
-            if (!emp.compositeScore || emp.compositeScore.score === undefined) return false;
-            const score = emp.compositeScore.score;
-
-            switch(employeeAdvancedFilters.compositeScoreTier) {
-                case 'top-performer': return score >= 75 && score <= 100;
-                case 'above-average': return score >= 60 && score < 75;
-                case 'average': return score >= 40 && score < 60;
-                case 'below-average': return score >= 25 && score < 40;
-                case 'poor': return score >= 0 && score < 25;
-                default: return true;
-            }
-        });
-        console.log(`[FILTER] Composite Score Tier (${employeeAdvancedFilters.compositeScoreTier}): ${beforeCount} -> ${filteredPerformances.length}`);
-    }
 
     // Skill Rank filter
     if (employeeAdvancedFilters.cohortRankMin !== null || employeeAdvancedFilters.cohortRankMax !== null) {
@@ -15284,13 +15367,13 @@ function renderEmployeeTableView() {
         console.log(`[FILTER] Skill Level: ${beforeCount} -> ${filteredPerformances.length}`);
     }
 
-    // Rating filter
+    // Rating filter (uses Fair Score rating in LITE version)
     if (employeeAdvancedFilters.rating !== 'all') {
         const beforeCount = filteredPerformances.length;
         filteredPerformances = filteredPerformances.filter(emp => {
-            if (!emp.compositeScore || !emp.compositeScore.rating) return false;
-            const ratingMatch = emp.compositeScore.rating.toLowerCase().replace(/\s+/g, '-');
-            return ratingMatch === employeeAdvancedFilters.rating;
+            if (!emp.fairScoreRating) return false;
+            // Fair Score uses A/B/C/D ratings
+            return emp.fairScoreRating === employeeAdvancedFilters.rating.toUpperCase();
         });
         console.log(`[FILTER] Rating: ${beforeCount} -> ${filteredPerformances.length}`);
     }
@@ -15308,71 +15391,8 @@ function renderEmployeeTableView() {
     console.log(`[FILTER] Final employee count after all advanced filters: ${filteredPerformances.length}`);
 
     // ============================================================================
-    // DYNAMIC TEAM AVERAGES FOR COMPOSITE SCORE (FIX P0)
-    // Recalculate team averages based on filtered employees for contextual Composite Score
-    // Falls back to FIXED baseline if sample size < 10 (statistical stability)
+    // SORTING (LITE VERSION - Fair Score based)
     // ============================================================================
-    const MIN_SAMPLE_SIZE = 10;
-    let dynamicTeamAvgSales, dynamicTeamAvgGrowth;
-    let useDynamicAverages = filteredPerformances.length >= MIN_SAMPLE_SIZE;
-
-    if (useDynamicAverages) {
-        // Recalculate team averages on filtered dataset
-        dynamicTeamAvgSales = filteredPerformances.reduce((sum, e) => sum + e.totalSales, 0) / filteredPerformances.length;
-
-        // Growth average from employees with valid growth data only
-        const employeesWithValidGrowth = filteredPerformances.filter(e =>
-            e.growthVelocity?.monthlyGrowth != null &&
-            isFinite(e.growthVelocity.monthlyGrowth)
-        );
-        dynamicTeamAvgGrowth = employeesWithValidGrowth.length > 0
-            ? employeesWithValidGrowth.reduce((sum, e) => sum + e.growthVelocity.monthlyGrowth, 0) / employeesWithValidGrowth.length
-            : 0;
-
-        console.log(`[DYNAMIC TEAM AVG] Using filtered context (n=${filteredPerformances.length}):`, {
-            sales: `€${dynamicTeamAvgSales.toFixed(2)}`,
-            growth: `${dynamicTeamAvgGrowth.toFixed(2)}%/month`,
-            vs_fixed: `${((dynamicTeamAvgSales - FIXED_teamAvgSales) / FIXED_teamAvgSales * 100).toFixed(1)}%`
-        });
-    } else {
-        // Fallback to FIXED baseline for statistical stability
-        dynamicTeamAvgSales = FIXED_teamAvgSales;
-        dynamicTeamAvgGrowth = 0; // Will use neutral default in calculateCompositeScore
-        console.warn(`[DYNAMIC TEAM AVG] Sample too small (n=${filteredPerformances.length} < ${MIN_SAMPLE_SIZE}), using FIXED baseline`);
-    }
-
-    // Recalculate Composite Score with dynamic averages
-    filteredPerformances.forEach(emp => {
-        // HYBRID PERFORMANCE INDEX with dynamic team average
-        const absolutePI = dynamicTeamAvgSales > 0
-            ? (emp.totalSales / dynamicTeamAvgSales) * 100
-            : 70;
-
-        // Calculate team average efficiency PI
-        const teamAvgEfficiencyPI = filteredPerformances.reduce((sum, e) =>
-            sum + (e.normalizedMetrics?.performanceIndex || 0), 0) / filteredPerformances.length;
-
-        const rawEfficiencyPI = emp.normalizedMetrics?.performanceIndex || 70;
-        const efficiencyPI = teamAvgEfficiencyPI > 0
-            ? (rawEfficiencyPI / teamAvgEfficiencyPI) * 100
-            : 100;
-
-        // Hybrid PI: 60% absolute + 40% efficiency
-        const performanceIndex = (absolutePI * 0.60) + (efficiencyPI * 0.40);
-
-        // Recalculate Composite Score with dynamic context
-        const compositeScoreData = calculateCompositeScore({
-            performanceIndex: performanceIndex,
-            growthVelocity: emp.growthVelocity,
-            consistencyScore: emp.consistencyScore,
-            skillRank: emp.skillRank || 50,
-            teamAvgGrowth: useDynamicAverages ? dynamicTeamAvgGrowth : null // Pass team avg for neutral default
-        });
-
-        emp.compositeScore = compositeScoreData;
-    });
-
-    console.log(`[COMPOSITE SCORE] Recalculated with ${useDynamicAverages ? 'DYNAMIC' : 'FIXED'} team averages`);
 
     // Apply sorting if active
     if (employeeSortColumn) {
@@ -15394,7 +15414,7 @@ function renderEmployeeTableView() {
                 case 'cohort': aVal = a.cohort.sortOrder; bVal = b.cohort.sortOrder; break;
                 case 'cohortRank': aVal = a.cohortRank; bVal = b.cohortRank; break;
                 case 'velocity': aVal = a.growthVelocity.monthlyGrowth; bVal = b.growthVelocity.monthlyGrowth; break;
-                case 'compositeScore': aVal = a.compositeScore.score; bVal = b.compositeScore.score; break;
+                case 'fairScore': aVal = a.fairScore || 0; bVal = b.fairScore || 0; break;
                 default: aVal = a.totalSales; bVal = b.totalSales;
             }
 
@@ -15441,19 +15461,38 @@ function renderEmployeeTableView() {
             <div style="background: #34495e; color: white; padding: 8px 12px; font-size: 11px; font-weight: 600;">
                 EMPLOYEE PERFORMANCE TABLE
                 <span style="float: right; font-size: 9px; font-weight: normal; opacity: 0.8;">${filteredPerformances.length} employees ${showOnlyActiveEmployees ? '(active only)' : ''}</span>
-            </div>
-            ${!useDynamicAverages ? `
-                <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 12px; font-size: 10px; color: #856404;">
-                    <strong>⚠️ Small Sample Warning:</strong> Sample size (n=${filteredPerformances.length}) is below statistical threshold (n<${MIN_SAMPLE_SIZE}).
-                    Composite Score uses <strong>company-wide baseline</strong> for stability.
-                    <span style="opacity: 0.8;">Results may not reflect team-specific performance accurately.</span>
-                </div>
-            ` : `
-                <div style="background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 10px 12px; font-size: 10px; color: #0c5460;">
-                    <strong>ℹ️ Dynamic Calculation:</strong> Composite Score calculated with <strong>context-specific baseline</strong> (n=${filteredPerformances.length}).
-                    Team avg sales: €${dynamicTeamAvgSales.toFixed(0)}, Growth: ${dynamicTeamAvgGrowth.toFixed(2)}%/month.
-                </div>
-            `}
+            </div>`
+
+            <!-- DATA QUALITY TIER WARNING (COLLAPSIBLE) -->
+            ${(() => {
+                const tierCCount = filteredPerformances.filter(e => e.dataTier?.tier === 'C').length;
+                const tierDCount = filteredPerformances.filter(e => e.dataTier?.tier === 'D').length;
+                const tierABCount = filteredPerformances.filter(e => e.dataTier?.tier === 'A' || e.dataTier?.tier === 'B').length;
+
+                if (tierCCount > 0 || tierDCount > 0) {
+                    const tierCNames = filteredPerformances.filter(e => e.dataTier?.tier === 'C').map(e => e.employee).join(', ');
+                    const tierDNames = filteredPerformances.filter(e => e.dataTier?.tier === 'D').map(e => e.employee).join(', ');
+
+                    return `
+                        <div style="background: #fff3cd; border-left: 4px solid #f39c12; font-size: 10px; color: #856404;">
+                            <div onclick="toggleDataQualityWarning()"
+                                 style="padding: 10px 12px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;"
+                                 onmouseover="this.style.background='#fff9e6'"
+                                 onmouseout="this.style.background='transparent'">
+                                <strong>📊 Qualità Dati - Avviso Statistico</strong>
+                                <span id="dataQualityWarningIcon" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+                            </div>
+                            <div id="dataQualityWarningContent" style="padding: 0 12px 10px 12px; margin-top: 6px;">
+                                ${tierABCount > 0 ? `<div><span style="color: #27ae60;">✓ ${tierABCount} dipendent${tierABCount > 1 ? 'i' : 'e'}</span> con dati completi (TIER A/B) - ranking affidabile</div>` : ''}
+                                ${tierCCount > 0 ? `<div style="margin-top: 4px;"><span style="color: #f39c12;">⚠️ ${tierCCount} dipendent${tierCCount > 1 ? 'i' : 'e'}</span> con dati parziali (TIER C): <strong>${tierCNames}</strong><br/><em style="font-size: 9px;">→ Solo metriche transazionali valide (Avg Ticket, UPT). Trend non statisticamente significativo.</em></div>` : ''}
+                                ${tierDCount > 0 ? `<div style="margin-top: 4px;"><span style="color: #e74c3c;">❌ ${tierDCount} dipendent${tierDCount > 1 ? 'i' : 'e'}</span> con dati insufficienti (TIER D): <strong>${tierDNames}</strong><br/><em style="font-size: 9px;">→ Confronto non affidabile. Necessario attendere almeno 3 mesi di storico.</em></div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+                return '';
+            })()}
+
             <!-- Bulk Actions Toolbar -->
             <div id="bulkActionsToolbar" style="display: none; background: #3498db; padding: 10px 12px; align-items: center; gap: 12px;">
                 <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
@@ -15616,14 +15655,32 @@ function renderEmployeeTableView() {
         const typeIcon = emp.weeklyHours >= 35 ? '👔' : '⏰';
         const typeBadge = emp.weeklyHours >= 35 ? 'FT' : 'PT';
 
+        // TIER BADGE - Show data quality tier (aligned right)
+        const tierBadge = emp.dataTier ? `
+            <span style="display: inline-block; padding: 2px 5px;
+                         background: ${emp.dataTier.tierColor}; color: white;
+                         border-radius: 3px; font-weight: 600; font-size: 9px; cursor: help;"
+                  title="📊 ${emp.dataTier.tierDescription}
+&#10;Periodi attivi: ${emp.dataTier.periodsActive}
+&#10;Gap: ${emp.dataTier.gapPercentage}%
+&#10;Metriche: ${emp.dataTier.recommendedMetrics.join(', ')}">
+                TIER ${emp.dataTier.tier}
+            </span>
+        ` : '';
+
         html += `
             <tr style="background: ${rowBg}; transition: background 0.2s;"
                 onmouseover="this.style.background='#ecf0f1'"
                 onmouseout="this.style.background='${rowBg}'">
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6;">
-                    <span onclick="showEmployeeHRPopover('${emp.employee.replace(/'/g, "\\'")}', event)"
-                          style="cursor: pointer; color: #3498db; text-decoration: underline; text-decoration-style: dotted; font-weight: 600;"
-                          title="Click per dettagli HR">${emp.employee}</span>${inactiveBadge}
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                        <div>
+                            <span onclick="showEmployeeHRPopover('${emp.employee.replace(/'/g, "\\'")}', event)"
+                                  style="cursor: pointer; color: #3498db; text-decoration: underline; text-decoration-style: dotted; font-weight: 600;"
+                                  title="Click per dettagli HR">${emp.employee}</span>${inactiveBadge}
+                        </div>
+                        ${tierBadge}
+                    </div>
                 </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; color: #7f8c8d; font-size: 10px;">
                     ${shopsDisplay}
@@ -15644,9 +15701,9 @@ function renderEmployeeTableView() {
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                         ${renderSparkline(emp.periods, periods, emp.employee)}
-                        ${emp.growth != null
+                        ${emp.dataTier && emp.dataTier.hasValidGrowth && emp.growth != null
                             ? `<span style="color: ${growthColor}; font-weight: 600; font-size: 10px;">${growthIcon} ${emp.growth >= 0 ? '+' : ''}${emp.growth.toFixed(1)}%</span>`
-                            : `<span style="color: #95a5a6; font-weight: 600; font-size: 10px;">—</span>`
+                            : `<span style="color: #95a5a6; font-weight: 600; font-size: 9px; cursor: help;" title="Dati insufficienti per trend affidabile (${emp.dataTier ? emp.dataTier.periodsActive : 0} periodi)">N/A</span>`
                         }
                     </div>
                 </td>
@@ -15680,7 +15737,6 @@ function renderEmployeeTableView() {
     });
 
     // Calculate team statistics for footer
-    const teamAvgCompositeScore = employeePerformances.reduce((sum, e) => sum + (e.compositeScore?.score || 0), 0) / employeePerformances.length;
     const activeEmployeesCount = employeePerformances.filter(e => e.isActive !== false).length;
     const totalDocuments = employeePerformances.reduce((sum, e) => sum + (e.totalTransactions || 0), 0);
     const totalPieces = employeePerformances.reduce((sum, e) => sum + (e.totalQty || 0), 0);
@@ -16569,7 +16625,7 @@ function applyEmployeeAdvancedFilters() {
     // Store advanced filters for use in renderEmployeeTableView()
     employeeAdvancedFilters = {
         salesMin, salesMax, growthCondition, avgTicketMin: ticketMin, avgTicketMax: ticketMax,
-        uptMin, uptMax, compositeScoreTier: compScoreTier,
+        uptMin, uptMax,
         cohortRankMin, cohortRankMax, trend6M, consistency, cohort, rating, shop, fteType
     };
 
@@ -16679,7 +16735,7 @@ function resetEmployeeAdvancedFilters() {
     employeeAdvancedFilters = {
         salesMin: null, salesMax: null, growthCondition: 'all',
         avgTicketMin: null, avgTicketMax: null,
-        uptMin: null, uptMax: null, compositeScoreTier: 'all',
+        uptMin: null, uptMax: null,
         cohortRankMin: null, cohortRankMax: null, trend6M: 'all',
         consistency: 'all', cohort: 'all', rating: 'all', shop: 'all', fteType: 'all'
     };
@@ -16917,6 +16973,84 @@ function generateLitePage1_ExecutiveSummary(doc, employees, teamMetrics, ratingD
     doc.setTextColor(44, 62, 80);
     doc.text(`: ${ratingDist.D} dipendenti (${(ratingDist.D / teamMetrics.totalEmployees * 100).toFixed(0)}%)`, 56, y + 6);
     y += 15;
+
+    // ============================================================================
+    // DATA QUALITY TIER DISTRIBUTION
+    // ============================================================================
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Qualita Dati (Tier System)', 14, y);
+    y += 8;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+
+    // Calculate tier distribution
+    const tierDist = {
+        A: employees.filter(e => e.dataTier?.tier === 'A').length,
+        B: employees.filter(e => e.dataTier?.tier === 'B').length,
+        C: employees.filter(e => e.dataTier?.tier === 'C').length,
+        D: employees.filter(e => e.dataTier?.tier === 'D').length
+    };
+
+    // TIER A - Green
+    doc.setFillColor(39, 174, 96);
+    doc.rect(14, y, 35, 6, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text(`TIER A`, 16, y + 4);
+    doc.setTextColor(44, 62, 80);
+    doc.setFontSize(9);
+    doc.text(`: ${tierDist.A} dip. (${(tierDist.A / teamMetrics.totalEmployees * 100).toFixed(0)}%) - Dati completi, ranking affidabile`, 51, y + 4);
+    y += 7;
+
+    // TIER B - Blue
+    doc.setFillColor(52, 152, 219);
+    doc.rect(14, y, 35, 6, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text(`TIER B`, 16, y + 4);
+    doc.setTextColor(44, 62, 80);
+    doc.setFontSize(9);
+    doc.text(`: ${tierDist.B} dip. (${(tierDist.B / teamMetrics.totalEmployees * 100).toFixed(0)}%) - Dati buoni, valido con aggiustamento`, 51, y + 4);
+    y += 7;
+
+    // TIER C - Orange
+    doc.setFillColor(243, 156, 18);
+    doc.rect(14, y, 35, 6, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text(`TIER C`, 16, y + 4);
+    doc.setTextColor(44, 62, 80);
+    doc.setFontSize(9);
+    const tierCNames = employees.filter(e => e.dataTier?.tier === 'C').map(e => e.employee).join(', ');
+    doc.text(`: ${tierDist.C} dip. (${(tierDist.C / teamMetrics.totalEmployees * 100).toFixed(0)}%) - Dati parziali: ${tierCNames || 'nessuno'}`, 51, y + 4);
+    y += 7;
+
+    // TIER D - Red
+    doc.setFillColor(231, 76, 60);
+    doc.rect(14, y, 35, 6, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.text(`TIER D`, 16, y + 4);
+    doc.setTextColor(44, 62, 80);
+    doc.setFontSize(9);
+    const tierDNames = employees.filter(e => e.dataTier?.tier === 'D').map(e => e.employee).join(', ');
+    doc.text(`: ${tierDist.D} dip. (${(tierDist.D / teamMetrics.totalEmployees * 100).toFixed(0)}%) - Dati insufficienti: ${tierDNames || 'nessuno'}`, 51, y + 4);
+    y += 10;
+
+    // Warning for TIER C/D employees
+    if (tierDist.C > 0 || tierDist.D > 0) {
+        doc.setFillColor(255, 243, 205);
+        doc.roundedRect(14, y, pageWidth - 28, 10, 1, 1, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(133, 100, 4);
+        doc.text(`NOTA: ${tierDist.C + tierDist.D} dipendenti con dati limitati. Trend e ranking potrebbero non essere statisticamente significativi.`, 16, y + 4);
+        doc.text(`Solo metriche transazionali (Avg Ticket, UPT) sono affidabili per TIER C. Attendere 6+ mesi per TIER D.`, 16, y + 8);
+        y += 12;
+    }
+
+    doc.setTextColor(44, 62, 80);
 
     // Top Performers Section
     doc.setFontSize(12);
@@ -17462,10 +17596,6 @@ function aggregateEmployeeReportData() {
 
         emp.performanceIndex = calculateEmployeePerformanceIndex(emp);
 
-        // Calculate Composite Score will be done AFTER team averages are calculated
-        // (temporarily skip to avoid using wrong PI)
-        emp.compositeScore = null;
-
         // Check if employee is active
         emp.isActive = isEmployeeActive(emp.employee, Object.keys(emp.periods));
 
@@ -17476,36 +17606,6 @@ function aggregateEmployeeReportData() {
             return emp.isActive;
         }
         return true;
-    });
-
-    // CRITICAL FIX 3: Calculate Hybrid PI and Composite Score with team context
-    // This must be done AFTER all employees are processed to get team averages
-    const teamAvgSales = employees.length > 0 ? employees.reduce((sum, e) => sum + e.totalSales, 0) / employees.length : 0;
-    const teamAvgEfficiencyPI = employees.length > 0
-        ? employees.reduce((sum, e) => sum + (e.normalizedMetrics?.performanceIndex || 0), 0) / employees.length
-        : 0;
-
-    filteredEmployees.forEach(emp => {
-        // Component 1: Absolute Contribution (raw sales vs team average)
-        const absolutePI = teamAvgSales > 0 ? (emp.totalSales / teamAvgSales) * 100 : 70;
-
-        // Component 2: Efficiency Score (FTE-adjusted from normalizedMetrics)
-        const rawEfficiencyPI = emp.normalizedMetrics?.performanceIndex || 70;
-        const efficiencyPI = teamAvgEfficiencyPI > 0 ? (rawEfficiencyPI / teamAvgEfficiencyPI) * 100 : 100;
-
-        // Hybrid PI: 60% absolute contribution + 40% efficiency (SAME AS UI!)
-        const hybridPI = (absolutePI * 0.60) + (efficiencyPI * 0.40);
-
-        // Now calculate Composite Score with CORRECT Hybrid PI
-        const compositeScoreData = calculateCompositeScore({
-            performanceIndex: hybridPI,  // FIX: Use Hybrid PI instead of simple PI
-            growthVelocity: emp.growthVelocity,
-            consistencyScore: emp.consistencyScore,
-            skillRank: emp.skillRank || 50,
-            growth: emp.growthRate,  // Pass total growth for weighted average
-            periodsActive: emp.periodsActive  // Pass periods count for weighted average
-        });
-        emp.compositeScore = compositeScoreData;
     });
 
     // Calculate totals
@@ -17775,21 +17875,7 @@ function calculateEmployeeAnalytics(data) {
     const topQuartile = byTotalSales.slice(0, quartileSize);
     const bottomQuartile = byTotalSales.slice(-quartileSize);
 
-    // Composite Score analytics - UPDATED TO 6-LEVEL SYSTEM
-    const employeesWithCS = employees.filter(e => e.compositeScore && e.compositeScore.score);
-    const avgCompositeScore = employeesWithCS.length > 0
-        ? employeesWithCS.reduce((sum, e) => sum + e.compositeScore.score, 0) / employeesWithCS.length
-        : 0;
-
-    // 6-LEVEL GRANULAR SYSTEM: AAA(80+)/AA(68+)/A(55+)/B+(45+)/B(35+)/C(<35)
-    const compositeScoreDistribution = {
-        aaa: employeesWithCS.filter(e => e.compositeScore.score >= 80).length,       // ECCELLENTE ★★★
-        aa: employeesWithCS.filter(e => e.compositeScore.score >= 68 && e.compositeScore.score < 80).length,  // MOLTO BUONO ★★
-        a: employeesWithCS.filter(e => e.compositeScore.score >= 55 && e.compositeScore.score < 68).length,   // BUONO ★
-        bPlus: employeesWithCS.filter(e => e.compositeScore.score >= 45 && e.compositeScore.score < 55).length, // DISCRETO ◆
-        b: employeesWithCS.filter(e => e.compositeScore.score >= 35 && e.compositeScore.score < 45).length,   // SUFFICIENTE ▲
-        c: employeesWithCS.filter(e => e.compositeScore.score < 35).length           // INSUFFICIENTE ▼
-    };
+    // LITE VERSION: Composite Score removed, Fair Score used instead
 
     return {
         topPerformers,
@@ -17805,11 +17891,6 @@ function calculateEmployeeAnalytics(data) {
             bottomQuartile,
             topQuartileSales: topQuartile.reduce((sum, e) => sum + e.totalSales, 0),
             bottomQuartileSales: bottomQuartile.reduce((sum, e) => sum + e.totalSales, 0)
-        },
-        compositeScore: {
-            average: avgCompositeScore,
-            distribution: compositeScoreDistribution,
-            total: employeesWithCS.length
         }
     };
 }
@@ -17946,48 +18027,7 @@ function generatePage1_ExecutiveSummary(doc, data, analytics, cleanText, uiConte
 
     y = doc.lastAutoTable.finalY + 8;
 
-    // Section 2B: Composite Score Distribution (NEW!)
-    if (analytics.compositeScore && analytics.compositeScore.total > 0) {
-        doc.setFontSize(11);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(44, 62, 80);
-        doc.text('COMPOSITE SCORE DISTRIBUTION', 14, y);
-
-        y += 6;
-        const csData = analytics.compositeScore;
-        const totalCS = csData.total;
-        // 6-LEVEL GRANULAR SYSTEM for PDF display
-        doc.autoTable({
-            startY: y,
-            head: [['Rating', 'Badge', 'Employees', '% of Team', 'Score Range']],
-            body: [
-                ['ECCELLENTE', 'AAA', csData.distribution.aaa.toString(), `${((csData.distribution.aaa / totalCS) * 100).toFixed(1)}%`, '80-100'],
-                ['MOLTO BUONO', 'AA', csData.distribution.aa.toString(), `${((csData.distribution.aa / totalCS) * 100).toFixed(1)}%`, '68-80'],
-                ['BUONO', 'A', csData.distribution.a.toString(), `${((csData.distribution.a / totalCS) * 100).toFixed(1)}%`, '55-68'],
-                ['DISCRETO', 'B+', csData.distribution.bPlus.toString(), `${((csData.distribution.bPlus / totalCS) * 100).toFixed(1)}%`, '45-55'],
-                ['SUFFICIENTE', 'B', csData.distribution.b.toString(), `${((csData.distribution.b / totalCS) * 100).toFixed(1)}%`, '35-45'],
-                ['INSUFFICIENTE', 'C', csData.distribution.c.toString(), `${((csData.distribution.c / totalCS) * 100).toFixed(1)}%`, '<35']
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [52, 152, 219], fontSize: 7, fontStyle: 'bold' },
-            bodyStyles: { fontSize: 7 },
-            columnStyles: {
-                1: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-                2: { halign: 'center' },
-                3: { halign: 'center' },
-                4: { halign: 'center' }
-            },
-            margin: { left: 14, right: 14 }
-        });
-
-        y = doc.lastAutoTable.finalY + 2;
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'italic');
-        doc.setTextColor(127, 140, 141);
-        doc.text(`Team Average: ${csData.average.toFixed(1)} / 100`, 14, y);
-
-        y = doc.lastAutoTable.finalY + 8;
-    }
+    // LITE VERSION: Composite Score section removed, Fair Score used instead
 
     // Section 3: TOP 10 Performers - Hall of Fame
     doc.setFontSize(11);
@@ -18009,10 +18049,9 @@ function generatePage1_ExecutiveSummary(doc, data, analytics, cleanText, uiConte
             growthDisplay = confidenceSymbol ? `${value}${confidenceSymbol}` : value;
         }
 
-        // Format Composite Score with rating badge (TEXT ONLY for PDF)
-        // Use badgeLabel (AAA/AA/A/B+/B/C) instead of badge (emoji symbols)
-        const csDisplay = emp.compositeScore
-            ? `${emp.compositeScore.score.toFixed(1)} (${emp.compositeScore.badgeLabel || emp.compositeScore.rating})`
+        // LITE VERSION: Use Fair Score instead of Composite Score
+        const fairScoreDisplay = emp.fairScore != null
+            ? `${emp.fairScore.toFixed(0)} (${emp.fairScoreRating || 'N/A'})`
             : 'N/A';
 
         return [
@@ -18021,14 +18060,14 @@ function generatePage1_ExecutiveSummary(doc, data, analytics, cleanText, uiConte
             `EUR ${emp.totalSales.toLocaleString('en-US', {maximumFractionDigits: 0})}`,
             emp.totalTransactions.toString(),
             growthDisplay,
-            csDisplay,
+            fairScoreDisplay,
             emp.skillLevel || emp.cohort || 'Unknown'
         ];
     });
 
     doc.autoTable({
         startY: y,
-        head: [['#', 'Employee', 'Total Sales', 'Trans.', 'Growth', 'Composite', 'Skill']],
+        head: [['#', 'Employee', 'Total Sales', 'Trans.', 'Growth', 'Fair Score', 'Skill']],
         body: top10Data,
         theme: 'striped',
         headStyles: { fillColor: [39, 174, 96], fontSize: 7, fontStyle: 'bold' },
@@ -18947,8 +18986,8 @@ function generatePage6_ActionPlan(doc, data, analytics, cleanText, uiContext) {
             doc.text(`Excellence: ${alert.issue}`, 20, y);
 
             y += 4;
-            if (alert.metrics.compositeScore) {
-                doc.text(`Composite Score: ${alert.metrics.compositeScore.toFixed(1)} (${alert.metrics.badge || 'EXCELLENT'})`, 20, y);
+            if (alert.metrics.fairScore) {
+                doc.text(`Fair Score: ${alert.metrics.fairScore.toFixed(0)} (${alert.metrics.rating || 'A'})`, 20, y);
             }
 
             y += 5;
@@ -18995,14 +19034,15 @@ function generateEmployeeAlerts(employees) {
     const alerts = [];
 
     filteredEmployees.forEach(emp => {
-        // Alert 1: Performance in calo critico
-        if (emp.compositeScore && emp.compositeScore.score < 40 && emp.growthRate != null && emp.growthRate < -20) {
+        // Alert 1: Performance in calo critico (LITE: uses Fair Score)
+        if (emp.fairScore && emp.fairScore < 40 && emp.growthRate != null && emp.growthRate < -20) {
             alerts.push({
                 severity: 'CRITICAL',
                 employee: emp.employee,
                 issue: 'Performance in calo significativo',
                 metrics: {
-                    composite: emp.compositeScore.score,
+                    fairScore: emp.fairScore,
+                    rating: emp.fairScoreRating,
                     trend: emp.growthRate
                 },
                 actions: [
@@ -19032,15 +19072,15 @@ function generateEmployeeAlerts(employees) {
             });
         }
 
-        // Alert 3: Top performer da celebrare
-        if (emp.compositeScore && emp.compositeScore.score >= 75) {
+        // Alert 3: Top performer da celebrare (LITE: uses Fair Score)
+        if (emp.fairScore && emp.fairScore >= 75) {
             alerts.push({
                 severity: 'BEST_PRACTICE',
                 employee: emp.employee,
                 issue: 'Top performer con performance eccellente',
                 metrics: {
-                    compositeScore: emp.compositeScore.score,
-                    badge: emp.compositeScore.badge
+                    fairScore: emp.fairScore,
+                    rating: emp.fairScoreRating
                 },
                 actions: [
                     'Condividere best practices in team',
@@ -19082,7 +19122,7 @@ function exportEmployeeToExcel() {
     const workbook = XLSX.utils.book_new();
 
     // ========== SHEET 1: Employee Summary ==========
-    const empSummary = [['Employee', 'Shops', 'Total Sales', 'Transactions', 'Avg Ticket', 'UPT', 'Growth %', 'Consistency CV%', 'Composite Score', 'Rating']];
+    const empSummary = [['Employee', 'Shops', 'Total Sales', 'Transactions', 'Avg Ticket', 'UPT', 'Growth %', 'Consistency CV%', 'Fair Score', 'Rating']];
 
     const aggregatedEmployees = {};
     Object.values(employeeData).forEach(empShop => {
@@ -19096,8 +19136,8 @@ function exportEmployeeToExcel() {
                 totalQty: 0,
                 growthRate: empShop.growthRate || 0,
                 consistencyScore: empShop.consistencyScore || 0,
-                compositeScore: empShop.compositeScore?.score || 0,
-                rating: empShop.compositeScore?.rating || 'N/A'
+                fairScore: empShop.fairScore || 0,
+                rating: empShop.fairScoreRating || 'N/A'
             };
         }
         aggregatedEmployees[empName].shops.add(empShop.shop);
@@ -19119,7 +19159,7 @@ function exportEmployeeToExcel() {
             upt,
             emp.growthRate,
             emp.consistencyScore,
-            emp.compositeScore,
+            emp.fairScore,
             emp.rating
         ]);
     });
@@ -19180,13 +19220,13 @@ function exportEmployeeToExcel() {
                 count: 0,
                 totalSales: 0,
                 totalGrowth: 0,
-                totalComposite: 0
+                totalFairScore: 0
             };
         }
         ratingGroups[rating].count++;
         ratingGroups[rating].totalSales += emp.totalSales;
         ratingGroups[rating].totalGrowth += emp.growthRate;
-        ratingGroups[rating].totalComposite += emp.compositeScore;
+        ratingGroups[rating].totalFairScore += emp.fairScore || 0;
     });
 
     const ratingOrder = ['EXCELLENT', 'GOOD', 'FAIR', 'NEEDS IMPROVEMENT', 'N/A'];
@@ -19198,7 +19238,7 @@ function exportEmployeeToExcel() {
                 group.count,
                 group.totalSales / group.count,
                 group.totalGrowth / group.count,
-                group.totalComposite / group.count
+                group.totalFairScore / group.count
             ]);
         }
     });
@@ -23203,128 +23243,9 @@ function calculateGrowthVelocity(employeePeriods, periodsArray, monthsBack = 6) 
  * @param {object} empData - Employee performance data with all metrics
  * @returns {object} {score: number (0-100), rating: string, badge: string, color: string}
  */
-function calculateCompositeScore(empData) {
-    // CALIBRATED NORMALIZATION FORMULAS (Phase 3 Fix)
-
-    // Normalize Performance Index to 0-100 scale
-    // Non-linear scaling centered at 100 (baseline)
-    // Map: PI=50->20, PI=75->35, PI=100->50, PI=125->65, PI=150->80, PI=167->90, PI=183->100
-    const perfIndex = empData.performanceIndex || 70; // Penalty for missing data (was 100)
-    const perfIndexNorm = Math.min(100, Math.max(0, 50 + (perfIndex - 100) * 0.6));
-
-    // Normalize Growth Velocity monthly rate to 0-100 scale
-    // Realistic range: -10% to +10% per month (narrowed from -20/+20)
-    // Map: -10%->0, -5%->25, 0%->50, +3%->65, +5%->75, +10%->100
-    // FIX: Use WEIGHTED AVERAGE of historic + recent growth (70% historic / 30% recent)
-    // This balances long-term track record with current momentum
-
-    // Calculate historic monthly growth (total growth / total periods)
-    const historicGrowth = empData.growth ?? 0; // Total growth % over all periods
-    const historicPeriods = empData.periodsActive || 1; // Avoid division by zero
-    const historicMonthlyGrowth = historicGrowth / historicPeriods;
-
-    // Recent monthly growth (6-month CAGR)
-    const recentMonthlyGrowth = empData.growthVelocity?.monthlyGrowth ?? 0;
-
-    // Weighted blend: 70% historic (stability) + 30% recent (momentum)
-    const monthlyGrowth = (historicMonthlyGrowth * 0.70) + (recentMonthlyGrowth * 0.30);
-
-    const velocityNorm = Math.min(100, Math.max(0, ((monthlyGrowth + 10) / 20) * 100));
-
-    // Normalize Consistency (inverse - lower CV is better)
-    // Direct mapping: CV=0%->100, CV=20%->80, CV=50%->50, CV=100%->0
-    const cv = empData.consistencyScore || 50; // Penalty for missing data (was 30)
-    const consistencyNorm = Math.min(100, Math.max(0, 100 - cv));
-
-    // Skill Rank Percentile is already 0-100
-    const skillRank = empData.skillRank || 30; // Penalty for missing data (was 50)
-
-    // Weighted composite (REBALANCED weights for better differentiation)
-    const compositeScore =
-        perfIndexNorm * 0.35 +  // Reduced from 40% to lower floor impact
-        velocityNorm * 0.30 +   // Increased from 25% to reward growth
-        consistencyNorm * 0.20 + // Unchanged
-        skillRank * 0.15; // Unchanged
-
-    // DEBUG: Log detailed calculation for scores below threshold
-    if (compositeScore < 40) {
-        console.log('LOW SCORE DETECTED:', {
-            finalScore: compositeScore,
-            inputs: {
-                rawPI: perfIndex,
-                historicGrowth: historicGrowth,
-                historicPeriods: historicPeriods,
-                historicMonthly: historicMonthlyGrowth.toFixed(2) + '%',
-                recentMonthly: recentMonthlyGrowth.toFixed(2) + '%',
-                blendedMonthly: monthlyGrowth.toFixed(2) + '%',
-                hasGrowthData: empData.growthVelocity?.hasData,
-                cv: cv,
-                skillPct: skillRank
-            },
-            normalized: {
-                perfIndexNorm: perfIndexNorm,
-                velocityNorm: velocityNorm,
-                consistencyNorm: consistencyNorm,
-                skillRank: skillRank
-            },
-            weighted: {
-                piContribution: perfIndexNorm * 0.35,
-                velocityContribution: velocityNorm * 0.30,
-                consistencyContribution: consistencyNorm * 0.20,
-                skillContribution: skillRank * 0.15
-            }
-        });
-    }
-
-    // Determine rating and badge (6-LEVEL GRANULAR THRESHOLDS)
-    // Enhanced granularity for small teams: AAA/AA/A/B+/B/C
-    let rating, badge, badgeLabel, color;
-    if (compositeScore >= 80) {
-        rating = 'ECCELLENTE';
-        badge = '★★★';
-        badgeLabel = 'AAA';
-        color = '#2d7a3e';  // Dark green
-    } else if (compositeScore >= 68) {
-        rating = 'MOLTO BUONO';
-        badge = '★★';
-        badgeLabel = 'AA';
-        color = '#27ae60';  // Green
-    } else if (compositeScore >= 52) {
-        rating = 'BUONO';
-        badge = '★';
-        badgeLabel = 'A';
-        color = '#3498db';  // Blue
-    } else if (compositeScore >= 45) {  // NEW LEVEL: DISCRETO
-        rating = 'DISCRETO';
-        badge = '◆';
-        badgeLabel = 'B+';
-        color = '#9b59b6';  // Purple - distinctive between blue and orange
-    } else if (compositeScore >= 35) {
-        rating = 'SUFFICIENTE';
-        badge = '▲';
-        badgeLabel = 'B';
-        color = '#f39c12';  // Orange
-    } else {  // <35 - true underperformance
-        rating = 'INSUFFICIENTE';
-        badge = '▼';
-        badgeLabel = 'C';
-        color = '#c0392b';  // Red
-    }
-
-    return {
-        score: Math.round(compositeScore * 10) / 10,
-        rating: rating,
-        badge: badge,
-        badgeLabel: badgeLabel,
-        color: color,
-        breakdown: {
-            performanceIndex: Math.round(perfIndexNorm * 10) / 10,
-            growthVelocity: Math.round(velocityNorm * 10) / 10,
-            consistency: Math.round(consistencyNorm * 10) / 10,
-            skillRank: Math.round(skillRank * 10) / 10
-        }
-    };
-}
+// LITE VERSION: calculateCompositeScore function removed
+// This version uses Fair Score exclusively for employee ranking
+// For PRO version features, use the full Sales Analyzer application
 
 /**
  * Calculate "vs Team %" dynamically based on active ranking mode
@@ -23538,12 +23459,16 @@ function calculatePerformanceIndexValue(employee, periods, totalHours, config, t
  * @param {object} teamAverages - Team averages for normalization { salesPerHour, avgTicket, upt, growth }
  * @returns {number} Fair Score (0-100)
  */
-function calculateFairScore(employee, periods, normalizedMetrics, growthData, consistencyScore, avgTicket, upt, tenure, teamAverages) {
+function calculateFairScore(employee, periods, normalizedMetrics, growthData, consistencyScore, avgTicket, upt, tenure, teamAverages, dataTier, seasonalityAdjusted) {
     // LITE VERSION: Use configurable weights from LITE_CONFIG
     const config = LITE_CONFIG || DEFAULT_LITE_CONFIG;
     const weights = config.weights;
 
     let totalScore = 0;
+
+    // TIER-AWARE SCORING: Adjust components based on data quality
+    const tier = dataTier?.tier || 'A';
+    const hasValidGrowth = dataTier?.hasValidGrowth || true;
 
     // COMPONENT 1: PERFORMANCE (configurable weight, default 40%)
     // Normalize sales per hour against team average, with tenure correction
@@ -23566,16 +23491,24 @@ function calculateFairScore(employee, periods, normalizedMetrics, growthData, co
     totalScore += performanceScore;
 
     // COMPONENT 2: GROWTH TREND (configurable weight, default 35%)
-    // Reward employees showing improvement over time
-    // YoY FIXED: Use monthlyGrowth instead of trend to avoid comparing total growth to monthly average
-    const growthPercent = growthData?.monthlyGrowth || 0;  // CRITICAL FIX: was growthData?.trend
-    const teamAvgGrowth = teamAverages?.growth || 0;
+    // TIER-AWARE: Only use growth for TIER A/B employees
+    let growthScore = 0;
+    if (hasValidGrowth && (tier === 'A' || tier === 'B')) {
+        // Reward employees showing improvement over time
+        // YoY FIXED: Use monthlyGrowth instead of trend to avoid comparing total growth to monthly average
+        const growthPercent = growthData?.monthlyGrowth || 0;  // CRITICAL FIX: was growthData?.trend
+        const teamAvgGrowth = teamAverages?.growth || 0;
 
-    // Normalize growth: -50% to +50% mapped to 0-1 scale
-    // Formula: ((growth - teamAvg) / 100 + 0.5), clamped to [0, 1]
-    const growthNormalized = Math.max(0, Math.min(1, ((growthPercent - teamAvgGrowth) / 100 + 0.5)));
-    const growthScore = growthNormalized * weights.growth;
-    totalScore += growthScore;
+        // Normalize growth: -50% to +50% mapped to 0-1 scale
+        // Formula: ((growth - teamAvg) / 100 + 0.5), clamped to [0, 1]
+        const growthNormalized = Math.max(0, Math.min(1, ((growthPercent - teamAvgGrowth) / 100 + 0.5)));
+        growthScore = growthNormalized * weights.growth;
+        totalScore += growthScore;
+    } else {
+        // TIER C/D: Growth not statistically valid - give neutral score (50% of max)
+        growthScore = weights.growth * 0.5; // Neutral contribution
+        totalScore += growthScore;
+    }
 
     // COMPONENT 3: SKILLS - Quality Metrics (configurable weight, default 15%)
     // Average of Avg Ticket and UPT scores
@@ -26126,16 +26059,7 @@ function toggleActiveFilter(checked) {
     }
 }
 
-// PHASE 3: Set Composite Score filter (Employee-Centric decisional filters)
-function setCompositeScoreFilter(filterType) {
-    compositeScoreFilter = filterType;
-    console.log('🔄 Composite Score filter changed to:', filterType);
-
-    // Re-render employee table view
-    if (employeeComparisonData) {
-        renderEmployeeTableView();
-    }
-}
+// LITE VERSION: Composite Score filter removed (uses Fair Score only)
 
 // Toggle active filter for employee-centric view (Employee Comparison Report)
 function toggleEmployeeCentricActiveFilter(checked) {
@@ -27275,7 +27199,7 @@ document.addEventListener('keydown', function(e) {
             if (!employeeComparisonData) return;
 
             const workbook = XLSX.utils.book_new();
-            const exportData = [['Employee', 'Total Sales', 'Growth %', 'Composite Score', 'Rating']];
+            const exportData = [['Employee', 'Total Sales', 'Growth %', 'Fair Score', 'Rating']];
 
             selectedEmployees.forEach(empName => {
                 const empData = Object.values(employeeComparisonData.employeeData).find(e => e.employee === empName);
@@ -27284,8 +27208,8 @@ document.addEventListener('keydown', function(e) {
                         empData.employee,
                         empData.totalSales,
                         empData.growthRate || 0,
-                        empData.compositeScore?.score || 0,
-                        empData.compositeScore?.rating || 'N/A'
+                        empData.fairScore || 0,
+                        empData.fairScoreRating || 'N/A'
                     ]);
                 }
             });
