@@ -2745,6 +2745,12 @@ Dipendente con 3 mesi maternità:
                         </button>
                     </div>
 
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <button onclick="showEcosAgileRawDataDebug()" style="background: #7f8c8d; border: 1px solid #6c7a89; color: #ffffff; padding: 6px 12px; font-size: 10px; font-weight: 600; cursor: pointer; border-radius: 3px; flex: 1;">
+                            🔍 Mostra Dati Raw API (Debug)
+                        </button>
+                    </div>
+
                     <div id="ecosagileStatus" style="margin-top: 10px; padding: 8px; background: #ecf0f1; border-radius: 3px; font-size: 11px; color: #7f8c8d; display: none;">
                         <!-- Status messages will appear here -->
                     </div>
@@ -4213,6 +4219,7 @@ Dipendente con 3 mesi maternità:
                     position: ecosEmployee.CategoryDescShort || ecosEmployee.Position || ecosEmployee.JobTitle || 'Not specified',
                     department: ecosEmployee.DepartmentDescShort || 'Not specified',
                     hireDate: this.parseItalianDate(ecosEmployee.HireDate || ''),
+                    firstHireDate: this.parseItalianDate(ecosEmployee.HireDateFirst || ecosEmployee.HireDate || ''),
                     phone: ecosEmployee.Phone || '',
                     status: (!ecosEmployee.Delete || ecosEmployee.Delete === '0') && ecosEmployee.PersonStatusCode === 'A'
                         ? 'active'
@@ -15532,6 +15539,7 @@ function renderEmployeeTableView() {
                     break;
                 case 'avgTicket': aVal = a.avgTicket; bVal = b.avgTicket; break;
                 case 'upt': aVal = a.upt; bVal = b.upt; break;
+                case 'salesPerHour': aVal = a.normalizedMetrics?.salesPerHour || 0; bVal = b.normalizedMetrics?.salesPerHour || 0; break;
                 case 'consistency': aVal = a.consistencyScore; bVal = b.consistencyScore; break;
                 case 'cohort': aVal = a.cohort.sortOrder; bVal = b.cohort.sortOrder; break;
                 case 'cohortRank': aVal = a.cohortRank; bVal = b.cohortRank; break;
@@ -15645,6 +15653,9 @@ function renderEmployeeTableView() {
                             </th>
                             <th onclick="sortEmployeeTable('sales')" style="padding: 12px 8px; text-align: right; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none;">
                                 💰 Sales ${employeeSortColumn === 'sales' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
+                            </th>
+                            <th onclick="sortEmployeeTable('salesPerHour')" style="padding: 12px 8px; text-align: right; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none; background: #3498db; color: white;" title="Efficienza oraria: Vendite / Ore effettive lavorate nel periodo (basato su ore contratto)">
+                                ⏱️ €/Ora ${employeeSortColumn === 'salesPerHour' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
                             </th>
                             <th onclick="sortEmployeeTable('fairScore')" style="padding: 12px 8px; text-align: center; border: 1px solid #34495e; font-weight: 600; cursor: pointer; user-select: none;" title="A/B/C/D Rating (Auto Mode): A=Top (75-100), B=Strong (55-74), C=Needs Help (40-54), D=Critical (0-39)">
                                 ⭐ Rating ${employeeSortColumn === 'fairScore' ? (employeeSortDirection === 'asc' ? '▲' : '▼') : ''}
@@ -15817,6 +15828,15 @@ function renderEmployeeTableView() {
                     title="Click per dettagli">
                     €${emp.totalSales.toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </td>
+                <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: right; background: #ebf5fb; cursor: help;"
+                    title="Efficienza: €${(emp.normalizedMetrics?.salesPerHour || 0).toFixed(2)}/ora&#10;&#10;Calcolo: €${emp.totalSales.toLocaleString('it-IT')} ÷ ${(emp.normalizedMetrics?.totalHours || 0).toFixed(0)}h = €${(emp.normalizedMetrics?.salesPerHour || 0).toFixed(2)}/h&#10;&#10;Ore contratto: ${emp.weeklyHours || 40}h/settimana&#10;Tipo: ${emp.weeklyHours >= 35 ? 'Full-time' : 'Part-time'}">
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                        <span style="font-weight: 700; color: #3498db; font-size: 11px;">
+                            €${(emp.normalizedMetrics?.salesPerHour || 0).toFixed(0)}
+                        </span>
+                        <span style="font-size: 8px; color: #7f8c8d;">${(emp.normalizedMetrics?.totalHours || 0).toFixed(0)}h</span>
+                    </div>
+                </td>
                 <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
                     <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
                         <span style="display: inline-block; padding: 2px 6px; background: ${ratingBg}; color: ${ratingColor}; border-radius: 3px; font-weight: 700; font-size: 12px; min-width: 30px;">
@@ -15869,8 +15889,10 @@ function renderEmployeeTableView() {
     const totalDocuments = employeePerformances.reduce((sum, e) => sum + (e.totalTransactions || 0), 0);
     const totalPieces = employeePerformances.reduce((sum, e) => sum + (e.totalQty || 0), 0);
 
-    // LITE VERSION: Simplified footer with 9 columns
+    // LITE VERSION: Simplified footer with 10 columns (added €/Ora)
     const teamTotalSales = employeePerformances.reduce((sum, e) => sum + e.totalSales, 0);
+    const teamAvgSalesPerHour = employeePerformances.reduce((sum, e) => sum + (e.normalizedMetrics?.salesPerHour || 0), 0) / employeePerformances.length;
+    const teamTotalHours = employeePerformances.reduce((sum, e) => sum + (e.normalizedMetrics?.totalHours || 0), 0);
     const teamAvgFairScore = employeePerformances.reduce((sum, e) => sum + (e.fairScore || 0), 0) / employeePerformances.length;
     // teamAvgUPT already declared at line 14440
 
@@ -15881,6 +15903,9 @@ function renderEmployeeTableView() {
                             <td colspan="2" style="padding: 12px 10px; border: 1px solid #34495e; font-size: 11px;">⭐ TEAM TOTALS</td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: right; font-size: 11px;">
                                 €${teamTotalSales.toLocaleString('it-IT', {maximumFractionDigits: 0})}
+                            </td>
+                            <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: right; background: #34495e; font-size: 11px;" title="Media team: €${teamAvgSalesPerHour.toFixed(2)}/ora basato su ${teamTotalHours.toFixed(0)}h totali">
+                                €${teamAvgSalesPerHour.toFixed(0)}
                             </td>
                             <td style="padding: 12px 10px; border: 1px solid #34495e; text-align: center; font-size: 10px;">
                                 Avg: ${teamAvgFairScore.toFixed(0)}/100
@@ -15958,8 +15983,11 @@ function showEmployeeHRPopover(employeeName, event) {
     const tenureMetrics = calculateTenureMetrics(employeeName, []);
     const cohortInfo = getCohortCategory(tenureMetrics.tenureMonths);
 
-    // Format hire date to DD/MM/YYYY if available
+    // Format hire dates to DD/MM/YYYY if available
     let formattedHireDate = '';
+    let formattedFirstHireDate = '';
+    let hasMultipleContracts = false;
+
     if (hrData && hrData.hireDate) {
         const hireDateObj = parseItalianDate(hrData.hireDate);
         if (hireDateObj) {
@@ -15969,6 +15997,18 @@ function showEmployeeHRPopover(employeeName, event) {
             formattedHireDate = `${day}/${month}/${year}`;
         } else {
             formattedHireDate = hrData.hireDate; // Fallback to original if parsing fails
+        }
+    }
+
+    // Check for first hire date (for employees with multiple contracts)
+    if (hrData && hrData.firstHireDate && hrData.firstHireDate !== hrData.hireDate) {
+        const firstHireDateObj = parseItalianDate(hrData.firstHireDate);
+        if (firstHireDateObj) {
+            const day = String(firstHireDateObj.getDate()).padStart(2, '0');
+            const month = String(firstHireDateObj.getMonth() + 1).padStart(2, '0');
+            const year = firstHireDateObj.getFullYear();
+            formattedFirstHireDate = `${day}/${month}/${year}`;
+            hasMultipleContracts = true;
         }
     }
 
@@ -16014,7 +16054,20 @@ function showEmployeeHRPopover(employeeName, event) {
 
             <!-- Content -->
             <div style="padding: 12px;">
-                ${formattedHireDate ? `
+                ${hasMultipleContracts ? `
+                    <div style="margin-bottom: 8px; font-size: 10px; display: flex; align-items: start; gap: 6px;">
+                        <span style="color: #7f8c8d; min-width: 20px;">🔄</span>
+                        <div style="flex: 1;">
+                            <div style="color: #7f8c8d; font-size: 8px; text-transform: uppercase; margin-bottom: 2px;">Prima Assunzione ↻</div>
+                            <div style="color: #2c3e50; font-weight: 600; margin-bottom: 4px;">${formattedFirstHireDate}</div>
+                            <div style="color: #7f8c8d; font-size: 8px; text-transform: uppercase; margin-bottom: 2px;">Contratto Attuale</div>
+                            <div style="color: #2c3e50; font-weight: 600;">${formattedHireDate}</div>
+                            <div style="margin-top: 4px; padding: 4px 6px; background: #e8f5e9; border-left: 2px solid #27ae60; font-size: 8px; color: #27ae60; font-weight: 600;">
+                                ℹ️ Anzianità calcolata dalla prima assunzione
+                            </div>
+                        </div>
+                    </div>
+                ` : formattedHireDate ? `
                     <div style="margin-bottom: 8px; font-size: 10px; display: flex; align-items: start; gap: 6px;">
                         <span style="color: #7f8c8d; min-width: 20px;">📅</span>
                         <div>
@@ -22827,7 +22880,8 @@ function calculateActualHoursInPeriod(employeeName, periods) {
         ? new Date(effectiveHireDateInfo.effectiveDate)
         : new Date(hrData.hireDate);
 
-    const weeklyHours = config.weeklyHours || 40;
+    // CRITICAL FIX: Read weekly hours from HR data FIRST, then config, then default
+    const weeklyHours = hrData.currentWeeklyHours || config.weeklyHours || 40;
     const hoursPerDay = weeklyHours / 5; // Assume 5-day work week
 
     let totalHours = 0;
@@ -22917,6 +22971,10 @@ function getEffectiveHireDate(employeeName) {
     const hrData = getHREmployee(employeeName);
     const hrHireDate = hrData?.hireDate ? new Date(hrData.hireDate) : null;
 
+    // CRITICAL: Use firstHireDate for real seniority (handles multiple contracts)
+    // This is the employee's FIRST employment date, even if they had gaps/rehires
+    const firstHireDate = hrData?.firstHireDate ? new Date(hrData.firstHireDate) : null;
+
     // Find first transaction date for this employee in rawData
     const employeeTransactions = rawData
         .filter(r => r.operatore === employeeName)
@@ -22944,76 +23002,140 @@ function getEffectiveHireDate(employeeName) {
     const firstTransactionDate = employeeTransactions.length > 0 ? employeeTransactions[0] : null;
 
     // CASE 1: No HR data and no transactions → Cannot determine
-    if (!hrHireDate && !firstTransactionDate) {
+    if (!firstHireDate && !hrHireDate && !firstTransactionDate) {
         return {
             effectiveDate: null,
             isRehire: false,
             firstTransactionDate: null,
             hrHireDate: null,
+            firstHireDate: null,
             source: 'none'
         };
     }
 
     // CASE 2: No HR data but has transactions → Use first transaction
-    if (!hrHireDate && firstTransactionDate) {
+    if (!firstHireDate && !hrHireDate && firstTransactionDate) {
         return {
             effectiveDate: firstTransactionDate,
             isRehire: false,
             firstTransactionDate: firstTransactionDate,
             hrHireDate: null,
+            firstHireDate: null,
             source: 'transaction'
         };
     }
 
-    // CASE 3: Has HR data but no transactions → Use HR date
-    if (hrHireDate && !firstTransactionDate) {
+    // CASE 3: Has firstHireDate (best source) → Use it for tenure/seniority
+    // This is the PRIMARY case for employees synced from EcosAgile with complete history
+    if (firstHireDate) {
+        const now = new Date();
+
+        // Sanity check: If firstHireDate is in the future, fall back to other dates
+        if (firstHireDate > now) {
+            console.warn(`[FUTURE FIRST HIRE DATE] ${employeeName}: firstHireDate ${firstHireDate.toLocaleDateString('it-IT')} is in the future!`);
+
+            // Try hrHireDate next
+            if (hrHireDate && hrHireDate <= now) {
+                return {
+                    effectiveDate: hrHireDate,
+                    isRehire: false,
+                    firstTransactionDate: firstTransactionDate,
+                    hrHireDate: hrHireDate,
+                    firstHireDate: hrHireDate,
+                    isFutureHireDate: true,
+                    source: 'hr-fallback-future-first'
+                };
+            }
+
+            // Last resort: transaction date
+            if (firstTransactionDate) {
+                return {
+                    effectiveDate: firstTransactionDate,
+                    isRehire: false,
+                    firstTransactionDate: firstTransactionDate,
+                    hrHireDate: hrHireDate || firstTransactionDate,
+                    firstHireDate: firstTransactionDate,
+                    isFutureHireDate: true,
+                    source: 'transaction-fallback-future-first'
+                };
+            }
+        }
+
+        // Determine if this is a multiple-contract employee
+        // If firstHireDate < hrHireDate, employee has had multiple contracts with gaps
+        const isMultipleContracts = hrHireDate && firstHireDate < hrHireDate;
+
+        if (isMultipleContracts) {
+            const daysDiff = Math.floor((hrHireDate - firstHireDate) / (1000 * 60 * 60 * 24));
+            console.log(`[MULTIPLE CONTRACTS] ${employeeName}: First hired ${firstHireDate.toLocaleDateString('it-IT')}, current contract ${hrHireDate.toLocaleDateString('it-IT')} (gap: ${daysDiff} days)`);
+        }
+
+        return {
+            effectiveDate: firstHireDate,  // ALWAYS use firstHireDate for tenure/seniority
+            isRehire: isMultipleContracts,
+            firstTransactionDate: firstTransactionDate,
+            hrHireDate: hrHireDate || firstHireDate,  // Use current contract date for hours, fall back to first
+            firstHireDate: firstHireDate,
+            rehireGapDays: isMultipleContracts ? Math.floor((hrHireDate - firstHireDate) / (1000 * 60 * 60 * 24)) : 0,
+            source: 'first-hire-date'
+        };
+    }
+
+    // CASE 4: Has hrHireDate but no firstHireDate → Use hrHireDate (legacy employees, manual entries)
+    if (hrHireDate && !firstHireDate) {
+        const now = new Date();
+
+        // Check if HR hire date is in the FUTURE (data error)
+        if (hrHireDate > now) {
+            console.warn(`[FUTURE HIRE DATE] ${employeeName}: HR hire date ${hrHireDate.toLocaleDateString('it-IT')} is in the future! Using first transaction date instead.`);
+
+            return {
+                effectiveDate: firstTransactionDate,
+                isRehire: false,
+                firstTransactionDate: firstTransactionDate,
+                hrHireDate: firstTransactionDate,
+                firstHireDate: firstTransactionDate,
+                isFutureHireDate: true,
+                source: 'future-date-fallback'
+            };
+        }
+
+        // Check if first transaction is BEFORE HR hire date → Old-style rehire detection
+        if (firstTransactionDate && firstTransactionDate < hrHireDate) {
+            const daysDiff = Math.floor((hrHireDate - firstTransactionDate) / (1000 * 60 * 60 * 24));
+            console.warn(`[REHIRE DETECTED - LEGACY] ${employeeName}: First sale ${firstTransactionDate.toLocaleDateString('it-IT')} is ${daysDiff} days before HR hire date ${hrHireDate.toLocaleDateString('it-IT')}`);
+
+            return {
+                effectiveDate: firstTransactionDate,  // Use FIRST transaction for tenure
+                isRehire: true,
+                firstTransactionDate: firstTransactionDate,
+                hrHireDate: hrHireDate,
+                firstHireDate: firstTransactionDate,  // Best guess
+                rehireGapDays: daysDiff,
+                source: 'rehire-detected-legacy'
+            };
+        }
+
+        // Normal hire with hrHireDate
         return {
             effectiveDate: hrHireDate,
             isRehire: false,
-            firstTransactionDate: null,
+            firstTransactionDate: firstTransactionDate,
             hrHireDate: hrHireDate,
+            firstHireDate: hrHireDate,  // Assume same as current contract
             source: 'hr'
         };
     }
 
-    // CASE 4: Check if HR hire date is in the FUTURE (data error)
-    const now = new Date();
-    if (hrHireDate > now) {
-        console.warn(`[FUTURE HIRE DATE] ${employeeName}: HR hire date ${hrHireDate.toLocaleDateString('it-IT')} is in the future! Using first transaction date instead.`);
-
-        return {
-            effectiveDate: firstTransactionDate,  // Use first transaction date
-            isRehire: false,  // Can't determine rehire with invalid HR data
-            firstTransactionDate: firstTransactionDate,
-            hrHireDate: firstTransactionDate,  // Use transaction date for hours too
-            isFutureHireDate: true,  // Flag for data quality issue
-            source: 'future-date-fallback'
-        };
-    }
-
-    // CASE 5: Has both → Check if rehired
-    // If first transaction is BEFORE HR hire date → Employee was rehired
-    if (firstTransactionDate < hrHireDate) {
-        const daysDiff = Math.floor((hrHireDate - firstTransactionDate) / (1000 * 60 * 60 * 24));
-        console.warn(`[REHIRE DETECTED] ${employeeName}: First sale ${firstTransactionDate.toLocaleDateString('it-IT')} is ${daysDiff} days before HR hire date ${hrHireDate.toLocaleDateString('it-IT')}`);
-
-        return {
-            effectiveDate: firstTransactionDate,  // Use FIRST hire date for tenure
-            isRehire: true,
-            firstTransactionDate: firstTransactionDate,
-            hrHireDate: hrHireDate,  // Keep for hours calculation
-            rehireGapDays: daysDiff,
-            source: 'rehire-detected'
-        };
-    }
-
-    // CASE 6: First transaction is AFTER or EQUAL to HR hire date → Normal hire
+    // CASE 5: Should never reach here, but handle gracefully
+    console.warn(`[UNEXPECTED CASE] ${employeeName}: Unexpected hire date combination`);
     return {
-        effectiveDate: hrHireDate,
+        effectiveDate: firstTransactionDate || new Date(),
         isRehire: false,
         firstTransactionDate: firstTransactionDate,
-        hrHireDate: hrHireDate,
-        source: 'hr'
+        hrHireDate: null,
+        firstHireDate: null,
+        source: 'fallback'
     };
 }
 
@@ -24443,11 +24565,259 @@ function renderHREmployeeList() {
 }
 
 /**
- * Open Add Employee Modal (placeholder)
+ * Open Add Employee Modal
  */
 function openAddEmployeeModal() {
-    alert('Add Employee Modal - Coming in next implementation step.\n\nWill include form for:\n- Employee ID\n- Full Name\n- Status\n- Weekly Hours\n- PT %\n- Hire Date\n- Department\n- Role\n- Notes');
-    // TODO: Implement modal form
+    // Create modal overlay
+    const modalHTML = `
+        <div id="addEmployeeModal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: fadeIn 0.2s ease-in;
+        ">
+            <div style="
+                background: white;
+                border-radius: 6px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                max-width: 600px;
+                width: 90%;
+                max-height: 90vh;
+                overflow-y: auto;
+                animation: slideDown 0.3s ease-out;
+            ">
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%); color: white; padding: 20px; border-radius: 6px 6px 0 0;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: 600;">➕ Aggiungi Nuovo Dipendente</h2>
+                    <p style="margin: 5px 0 0 0; font-size: 11px; opacity: 0.9;">Inserisci i dati anagrafici del dipendente</p>
+                </div>
+
+                <!-- Form -->
+                <div style="padding: 25px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <!-- Employee ID -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">ID Dipendente *</label>
+                            <input id="newEmployeeId" type="text" placeholder="es. EMP001" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+
+                        <!-- Full Name -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Nome Completo *</label>
+                            <input id="newEmployeeFullName" type="text" placeholder="es. MARIO ROSSI" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px; text-transform: uppercase;">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <!-- Status -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Status *</label>
+                            <select id="newEmployeeStatus" required style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                                <option value="active">✅ Attivo</option>
+                                <option value="inactive">⏸️ Inattivo</option>
+                                <option value="suspended">🚫 Sospeso</option>
+                            </select>
+                        </div>
+
+                        <!-- Weekly Hours -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Ore/Settimana *</label>
+                            <input id="newEmployeeWeeklyHours" type="number" min="1" max="40" step="0.5" value="40" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+
+                        <!-- PT % -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">PT % *</label>
+                            <input id="newEmployeePTPercentage" type="number" min="1" max="100" step="1" value="100" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <!-- Hire Date -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Data Assunzione *</label>
+                            <input id="newEmployeeHireDate" type="date" required
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+
+                        <!-- Termination Date (optional) -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Data Cessazione</label>
+                            <input id="newEmployeeTermDate" type="date"
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <!-- Email -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Email</label>
+                            <input id="newEmployeeEmail" type="email" placeholder="mario.rossi@example.com"
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+
+                        <!-- Phone -->
+                        <div>
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Telefono</label>
+                            <input id="newEmployeePhone" type="tel" placeholder="+39 333 1234567"
+                                   style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px;">
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px; font-size: 11px; color: #2c3e50;">Note</label>
+                        <textarea id="newEmployeeNotes" rows="3" placeholder="Note aggiuntive..."
+                                  style="width: 100%; padding: 8px; border: 1px solid #bdc3c7; border-radius: 3px; font-size: 11px; resize: vertical;"></textarea>
+                    </div>
+
+                    <!-- Helper text -->
+                    <div style="background: #e8f5e9; border-left: 4px solid #27ae60; padding: 10px; border-radius: 3px; margin-bottom: 20px;">
+                        <p style="margin: 0; font-size: 10px; color: #2c3e50; line-height: 1.4;">
+                            <strong>💡 Suggerimento:</strong> Il nome deve corrispondere esattamente a quello presente nei dati di vendita per consentire il match automatico.
+                        </p>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button onclick="closeAddEmployeeModal()"
+                                style="background: #95a5a6; border: 1px solid #7f8c8d; color: #ffffff; padding: 10px 20px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;">
+                            ✖️ Annulla
+                        </button>
+                        <button onclick="saveNewEmployee()"
+                                style="background: #27ae60; border: 1px solid #229954; color: #ffffff; padding: 10px 20px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;">
+                            ✅ Salva Dipendente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes slideDown {
+                from { transform: translateY(-50px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            #newEmployeeFullName {
+                text-transform: uppercase !important;
+            }
+        </style>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Auto-calculate PT% from weekly hours
+    document.getElementById('newEmployeeWeeklyHours').addEventListener('input', function() {
+        const hours = parseFloat(this.value) || 40;
+        const ptPercentage = Math.round((hours / 40) * 100);
+        document.getElementById('newEmployeePTPercentage').value = ptPercentage;
+    });
+}
+
+/**
+ * Close Add Employee Modal
+ */
+function closeAddEmployeeModal() {
+    const modal = document.getElementById('addEmployeeModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+/**
+ * Save New Employee to HR Database
+ */
+function saveNewEmployee() {
+    // Get form values
+    const employeeId = document.getElementById('newEmployeeId').value.trim();
+    const fullName = document.getElementById('newEmployeeFullName').value.trim().toUpperCase();
+    const status = document.getElementById('newEmployeeStatus').value;
+    const weeklyHours = parseFloat(document.getElementById('newEmployeeWeeklyHours').value);
+    const ptPercentage = parseFloat(document.getElementById('newEmployeePTPercentage').value);
+    const hireDate = document.getElementById('newEmployeeHireDate').value;
+    const termDate = document.getElementById('newEmployeeTermDate').value;
+    const email = document.getElementById('newEmployeeEmail').value.trim();
+    const phone = document.getElementById('newEmployeePhone').value.trim();
+    const notes = document.getElementById('newEmployeeNotes').value.trim();
+
+    // Validation
+    if (!employeeId || !fullName || !status || !weeklyHours || !ptPercentage || !hireDate) {
+        alert('⚠️ Compila tutti i campi obbligatori (*)');
+        return;
+    }
+
+    if (weeklyHours < 1 || weeklyHours > 40) {
+        alert('⚠️ Le ore settimanali devono essere tra 1 e 40');
+        return;
+    }
+
+    if (ptPercentage < 1 || ptPercentage > 100) {
+        alert('⚠️ La percentuale PT deve essere tra 1 e 100');
+        return;
+    }
+
+    // Check if employee already exists
+    if (employeeHRDatabase[fullName]) {
+        if (!confirm(`⚠️ Il dipendente "${fullName}" esiste già nel database.\n\nVuoi sovrascriverlo?`)) {
+            return;
+        }
+    }
+
+    // Create employee object
+    const newEmployee = {
+        employeeId: employeeId,
+        fullName: fullName,
+        currentStatus: status,
+        currentWeeklyHours: weeklyHours,
+        currentPTPercentage: ptPercentage,
+        hireDate: hireDate,
+        terminationDate: termDate || null,
+        email: email || null,
+        phone: phone || null,
+        contractHistory: [{
+            contractType: weeklyHours >= 35 ? 'Full-time' : 'Part-time',
+            weeklyHours: weeklyHours,
+            ptPercentage: ptPercentage,
+            startDate: hireDate,
+            endDate: termDate || null,
+            notes: 'Contratto iniziale - aggiunto manualmente'
+        }],
+        notes: notes || '',
+        lastUpdated: new Date().toISOString(),
+        source: 'MANUAL_ENTRY'
+    };
+
+    // Save to HR database
+    employeeHRDatabase[fullName] = newEmployee;
+
+    // Save to localStorage
+    saveHRDatabase();
+
+    // Close modal
+    closeAddEmployeeModal();
+
+    // Refresh HR employee list
+    renderHREmployeeList();
+
+    // Show success message
+    alert(`✅ Dipendente "${fullName}" aggiunto con successo!`);
+
+    console.log('✅ New employee added:', fullName, newEmployee);
 }
 
 /**
@@ -24681,13 +25051,13 @@ async function syncEmployeesFromEcosagile() {
     showEcosagileStatus('🔄 Syncing employees from EcosAgile HR System...', 'info');
 
     try {
-        // Get active employees from EcosAgile
-        const employees = await EcosAgileAPI.getEmployees(true); // active only
+        // Get ALL employees from EcosAgile (including terminated for seniority tracking)
+        const employees = await EcosAgileAPI.getEmployees(false); // include terminated
 
         console.log('[EcosAgile] Received employees:', employees);
 
         if (!employees || employees.length === 0) {
-            showEcosagileStatus('⚠️ No active employees found in EcosAgile system', 'warning');
+            showEcosagileStatus('⚠️ No employees found in EcosAgile system', 'warning');
             return;
         }
 
@@ -24729,6 +25099,7 @@ async function syncEmployeesFromEcosagile() {
                     ...existing,
                     employeeId: emp.id,
                     hireDate: emp.hireDate || existing.hireDate,
+                    firstHireDate: emp.firstHireDate || existing.firstHireDate || emp.hireDate || existing.hireDate,
                     terminationDate: emp.terminationDate || existing.terminationDate,
                     currentStatus: emp.status === 'active' ? 'active' : 'terminated',
                     currentWeeklyHours: emp.weeklyHours || existing.currentWeeklyHours || 40,
@@ -24746,6 +25117,7 @@ async function syncEmployeesFromEcosagile() {
                     employeeId: emp.id,
                     fullName: fullName,
                     hireDate: emp.hireDate || '',
+                    firstHireDate: emp.firstHireDate || emp.hireDate || '',
                     terminationDate: emp.terminationDate || '',
                     currentStatus: emp.status === 'active' ? 'active' : 'terminated',
                     currentWeeklyHours: emp.weeklyHours || 40,
@@ -24815,6 +25187,186 @@ function showEcosagileStatus(message, type = 'info') {
     statusDiv.style.background = colors[type] ? colors[type] + '20' : '#ecf0f1';
     statusDiv.style.color = colors[type] || '#7f8c8d';
     statusDiv.style.border = `1px solid ${colors[type] || '#bdc3c7'}`;
+}
+
+/**
+ * Show EcosAgile Raw Data Debug Modal
+ * Display all fields from API response to help identify seniority/tenure fields
+ */
+async function showEcosAgileRawDataDebug() {
+    // Check if credentials configured
+    if (!EcosAgileAPI.hrService) {
+        const loaded = EcosAgileAPI.loadCredentials();
+        if (!loaded) {
+            alert('⚠️ Configura prima le credenziali EcosAgile');
+            toggleEcosagileConfig();
+            return;
+        }
+    }
+
+    // Show loading
+    showEcosagileStatus('🔄 Caricamento dati raw dall\'API...', 'info');
+
+    try {
+        // Fetch employee data
+        const employees = await EcosAgileAPI.getEmployees(true);
+
+        if (!employees || employees.length === 0) {
+            alert('⚠️ Nessun dipendente trovato nell\'API');
+            return;
+        }
+
+        // Get first employee's raw data to see all fields
+        const firstEmployee = employees[0];
+        const rawData = firstEmployee.rawData || firstEmployee;
+
+        // Collect all unique field names from all employees
+        const allFieldNames = new Set();
+        employees.forEach(emp => {
+            const data = emp.rawData || emp;
+            Object.keys(data).forEach(key => allFieldNames.add(key));
+        });
+
+        // Sort field names alphabetically
+        const sortedFields = Array.from(allFieldNames).sort();
+
+        // Create modal
+        const modalHTML = `
+            <div id="rawDataDebugModal" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                animation: fadeIn 0.2s ease-in;
+            ">
+                <div style="
+                    background: white;
+                    border-radius: 6px;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                    max-width: 95%;
+                    width: 1200px;
+                    max-height: 90vh;
+                    display: flex;
+                    flex-direction: column;
+                ">
+                    <!-- Header -->
+                    <div style="background: linear-gradient(135deg, #7f8c8d 0%, #6c7a89 100%); color: white; padding: 20px; border-radius: 6px 6px 0 0;">
+                        <h2 style="margin: 0; font-size: 18px; font-weight: 600;">🔍 EcosAgile API - Dati Raw Completi</h2>
+                        <p style="margin: 5px 0 0 0; font-size: 11px; opacity: 0.9;">
+                            Tutti i campi disponibili nell'API • ${employees.length} dipendenti • ${sortedFields.length} campi totali
+                        </p>
+                    </div>
+
+                    <!-- Info Box -->
+                    <div style="padding: 15px; background: #fff3cd; border-bottom: 1px solid #ffeaa7;">
+                        <p style="margin: 0; font-size: 11px; color: #856404; line-height: 1.5;">
+                            <strong>📋 Cerca campi per anzianità:</strong> FirstHireDate, SeniorityDate, TotalServiceYears, ServiceStartDate, OriginalHireDate, ecc.<br>
+                            <strong>💡 Tip:</strong> Usa Ctrl+F per cercare nella tabella
+                        </p>
+                    </div>
+
+                    <!-- Field List (scrollable) -->
+                    <div style="flex: 1; overflow-y: auto; padding: 20px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                            <thead style="position: sticky; top: 0; background: #2c3e50; color: white; z-index: 1;">
+                                <tr>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #34495e; width: 40px;">#</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #34495e; width: 250px;">Campo API</th>
+                                    <th style="padding: 10px; text-align: left; border: 1px solid #34495e;">Valore Esempio (${firstEmployee.fullName || 'Primo Dipendente'})</th>
+                                    <th style="padding: 10px; text-align: center; border: 1px solid #34495e; width: 100px;">Presente in</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sortedFields.map((fieldName, index) => {
+                                    const value = (firstEmployee.rawData || firstEmployee)[fieldName];
+                                    const displayValue = value != null ? String(value) : '<em style="color: #95a5a6;">null</em>';
+
+                                    // Count how many employees have this field
+                                    let presentCount = 0;
+                                    employees.forEach(emp => {
+                                        const data = emp.rawData || emp;
+                                        if (data[fieldName] != null && data[fieldName] !== '') {
+                                            presentCount++;
+                                        }
+                                    });
+
+                                    const presentPercent = ((presentCount / employees.length) * 100).toFixed(0);
+                                    const presentColor = presentPercent > 90 ? '#27ae60' : presentPercent > 50 ? '#f39c12' : '#e74c3c';
+
+                                    // Highlight potential seniority/tenure fields
+                                    const isSeniorityField = fieldName.toLowerCase().includes('hire') ||
+                                                             fieldName.toLowerCase().includes('senior') ||
+                                                             fieldName.toLowerCase().includes('service') ||
+                                                             fieldName.toLowerCase().includes('tenure') ||
+                                                             fieldName.toLowerCase().includes('start') ||
+                                                             fieldName.toLowerCase().includes('first') ||
+                                                             fieldName.toLowerCase().includes('original');
+                                    const rowBg = isSeniorityField ? '#e8f5e9' : (index % 2 === 0 ? '#ffffff' : '#f8f9fa');
+                                    const fieldNameStyle = isSeniorityField ? 'font-weight: 700; color: #27ae60;' : '';
+
+                                    return `
+                                        <tr style="background: ${rowBg};">
+                                            <td style="padding: 8px; border: 1px solid #ecf0f1; text-align: center; color: #7f8c8d;">${index + 1}</td>
+                                            <td style="padding: 8px; border: 1px solid #ecf0f1; font-family: monospace; ${fieldNameStyle}">${fieldName}</td>
+                                            <td style="padding: 8px; border: 1px solid #ecf0f1; max-width: 400px; overflow: hidden; text-overflow: ellipsis;">${displayValue}</td>
+                                            <td style="padding: 8px; border: 1px solid #ecf0f1; text-align: center;">
+                                                <span style="background: ${presentColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                                                    ${presentCount}/${employees.length} (${presentPercent}%)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="padding: 15px 20px; background: #ecf0f1; border-top: 1px solid #bdc3c7; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 10px; color: #7f8c8d;">
+                            <strong>Legenda:</strong> <span style="background: #e8f5e9; padding: 2px 6px;">Evidenziati in verde</span> = possibili campi anzianità
+                        </div>
+                        <button onclick="closeRawDataDebugModal()"
+                                style="background: #e74c3c; border: 1px solid #c0392b; color: #ffffff; padding: 10px 20px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px;">
+                            ✖️ Chiudi
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+            </style>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        showEcosagileStatus('✅ Dati raw caricati - controlla il modal', 'success');
+
+    } catch (error) {
+        console.error('Error loading raw data:', error);
+        showEcosagileStatus('❌ Errore: ' + error.message, 'error');
+        alert('❌ Errore nel caricamento dati raw:\n\n' + error.message);
+    }
+}
+
+/**
+ * Close raw data debug modal
+ */
+function closeRawDataDebugModal() {
+    const modal = document.getElementById('rawDataDebugModal');
+    if (modal) {
+        modal.remove();
+    }
 }
 
 // ============================================================================
