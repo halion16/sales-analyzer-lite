@@ -2481,8 +2481,8 @@ Dipendente con 3 mesi maternità:
                 </div>
 
                 <!-- ADVANCED FILTERS PANEL -->
-                <div id="employeeAdvancedFiltersPanel" style="background: #34495e; padding: 12px; margin-bottom: 10px; border-radius: 3px; display: none;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div id="employeeAdvancedFiltersPanel" style="background: #34495e; padding: 8px; margin-bottom: 10px; border-radius: 3px; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <div style="font-size: 10px; font-weight: 600; color: #ecf0f1; letter-spacing: 0.3px;">
                             🔍 ADVANCED FILTERS
                         </div>
@@ -2491,18 +2491,17 @@ Dipendente con 3 mesi maternità:
                         </button>
                     </div>
 
-                    <div id="employeeFilterControls" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;">
-                        <!-- ROW 1 -->
+                    <div id="employeeFilterControls" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
                         <!-- Sales Range -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">💰 Sales (€)</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">💰 Sales (€)</label>
                             <input type="number" id="empFilterSalesMin" placeholder="Min" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
                             <input type="number" id="empFilterSalesMax" placeholder="Max" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
                         <!-- Growth Rate -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">📈 Growth</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">📈 Trend</label>
                             <select id="empFilterGrowth" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
                                 <option value="positive">+</option>
@@ -2513,109 +2512,50 @@ Dipendente con 3 mesi maternità:
                         </div>
 
                         <!-- Avg Ticket -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">🎫 Avg Ticket (€)</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🎫 Avg Ticket (€)</label>
                             <input type="number" id="empFilterTicketMin" placeholder="Min" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
                             <input type="number" id="empFilterTicketMax" placeholder="Max" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
                         <!-- UPT Range -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">📦 UPT</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🛍️ UPT</label>
                             <input type="number" id="empFilterUptMin" placeholder="Min" step="0.1" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
                             <input type="number" id="empFilterUptMax" placeholder="Max" step="0.1" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
-                        <!-- Composite Score -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">⭐ Score</label>
-                            <select id="empFilterCompScore" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                                <option value="all">All</option>
-                                <option value="top-performer">Top 75+</option>
-                                <option value="above-average">Above 60+</option>
-                                <option value="average">Avg 40+</option>
-                                <option value="below-average">Below 25+</option>
-                                <option value="poor">Poor <25</option>
-                            </select>
-                        </div>
-
-                        <!-- Skill Rank -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">🏅 Skill Rank (%)</label>
-                            <input type="number" id="empFilterCohortRankMin" placeholder="Min" min="0" max="100" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
-                            <input type="number" id="empFilterCohortRankMax" placeholder="Max" min="0" max="100" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                        </div>
-
-                        <!-- ROW 2 -->
-                        <!-- Trend 6M -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">📈 Trend</label>
-                            <select id="empFilterTrend6M" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                                <option value="all">All</option>
-                                <option value="accelerating">▲▲</option>
-                                <option value="growing">▲</option>
-                                <option value="stable">━</option>
-                                <option value="declining">▼</option>
-                            </select>
-                        </div>
-
-                        <!-- Consistency -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">🎯 Consistency</label>
-                            <select id="empFilterConsistency" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                                <option value="all">All</option>
-                                <option value="stable">Stable</option>
-                                <option value="moderate">Moderate</option>
-                                <option value="variable">Variable</option>
-                                <option value="low-volume">Low Vol</option>
-                            </select>
-                        </div>
-
-                        <!-- Skill Level -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">⚡ Skill Level</label>
+                        <!-- Experience Level -->
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">📚 Experience</label>
                             <select id="empFilterCohort" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All Levels</option>
-                                <option value="new-hire">L1 - New Hire (<3m)</option>
-                                <option value="associate">L2 - Associate (3-12m)</option>
-                                <option value="established">L3 - Established (1-2y)</option>
-                                <option value="specialist">L4 - Specialist (2-4y)</option>
-                                <option value="senior">L5 - Senior (4-7y)</option>
-                                <option value="expert">L6 - Expert (7+y)</option>
+                                <option value="new-hire">New Hire (<3m)</option>
+                                <option value="associate">Junior (3-12m)</option>
+                                <option value="established">Mid (1-2y)</option>
+                                <option value="specialist">Senior (2-4y)</option>
+                                <option value="senior">Expert (4+y)</option>
                             </select>
                         </div>
 
                         <!-- Rating -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">🏆 Rating</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">⭐ Rating</label>
                             <select id="empFilterRating" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
-                                <option value="eccellente">🌟 Ecc</option>
-                                <option value="molto-buono">⭐ M.Buono</option>
-                                <option value="buono">✅ Buono</option>
-                                <option value="discreto">💎 Discr</option>
-                                <option value="sufficiente">🔵 Suff</option>
-                                <option value="insufficiente">⚠️ Insuff</option>
+                                <option value="a">A - Top</option>
+                                <option value="b">B - Strong</option>
+                                <option value="c">C - Needs Help</option>
+                                <option value="d">D - Critical</option>
                             </select>
                         </div>
 
                         <!-- Shop -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">🏪 Shop</label>
+                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
+                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🏪 Shop</label>
                             <select id="empFilterShop" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
                                 <!-- Options populated dynamically -->
-                            </select>
-                        </div>
-
-                        <!-- ROW 3 (New Row for FTE Filter) -->
-                        <!-- FTE Type (Contract Hours) -->
-                        <div style="background: #2c3e50; padding: 6px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 3px;">⏰ Contract Type</label>
-                            <select id="empFilterFTE" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                                <option value="all">All Contracts</option>
-                                <option value="full-time">Full-Time (≥35h)</option>
-                                <option value="part-time">Part-Time (<35h)</option>
                             </select>
                         </div>
                     </div>
