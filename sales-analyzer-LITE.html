@@ -15749,27 +15749,32 @@ function renderEmployeeTableView() {
         }
 
         // Determine status based on rating and growth
-        let status, statusIcon, statusColor;
+        let status, statusIcon, statusColor, statusTooltip;
         if (rating === 'A') {
             status = 'Excellent';
             statusIcon = '✅';
             statusColor = '#27ae60';
+            statusTooltip = '🌟 TOP PERFORMER\n\nQuesto venditore sta eccellendo in tutte le metriche chiave:\n• Vendite superiori alla media del team\n• Trend positivo e costante\n• Ottimo scontrino medio e UPT\n\n💡 Azione suggerita:\n• Riconoscimento e reward\n• Considerare come mentor per altri\n• Analizzare le best practice da replicare';
         } else if (rating === 'B' && emp.growth > 0) {
             status = 'Improving';
             statusIcon = '📈';
             statusColor = '#3498db';
+            statusTooltip = '📈 IN CRESCITA\n\nVenditore in miglioramento costante:\n• Performance solide con trend positivo\n• Sta progredendo rispetto ai periodi precedenti\n• Metriche in linea o sopra la media\n\n💡 Azione suggerita:\n• Incoraggiare e supportare il progresso\n• Fornire feedback positivo\n• Monitorare per possibile promozione a Excellent';
         } else if (rating === 'B') {
             status = 'Strong';
             statusIcon = '✅';
             statusColor = '#3498db';
+            statusTooltip = '💪 PERFORMANCE SOLIDA\n\nVenditore affidabile con buone performance:\n• Metriche stabili e consistenti\n• Contributo positivo al team\n• Performance sopra o in linea con la media\n\n💡 Azione suggerita:\n• Mantenere motivazione alta\n• Identificare opportunità di crescita\n• Coaching per passare al livello successivo';
         } else if (rating === 'C') {
             status = 'Needs Help';
             statusIcon = '⚠️';
             statusColor = '#f39c12';
+            statusTooltip = '⚠️ NECESSITA SUPPORTO\n\nVenditore sotto le aspettative:\n• Performance inferiori alla media del team\n• Metriche da migliorare (vendite, scontrino, UPT)\n• Richiede attenzione e coaching\n\n💡 Azione suggerita:\n• Programmare 1-on-1 urgente\n• Identificare ostacoli e difficoltà\n• Piano di training e affiancamento\n• Follow-up settimanale';
         } else {
             status = 'Critical';
             statusIcon = '🔴';
             statusColor = '#e74c3c';
+            statusTooltip = '🚨 SITUAZIONE CRITICA\n\nVenditore in grave difficoltà:\n• Performance molto sotto la media\n• Trend negativo o assente\n• Rischio per obiettivi individuali e di team\n\n💡 Azione IMMEDIATA richiesta:\n• Incontro urgente con manager\n• Piano di recupero dettagliato\n• Valutare cause (formazione, motivazione, fit)\n• Monitoraggio giornaliero per 2 settimane';
         }
 
         // Employee type (FT/PT)
@@ -15847,8 +15852,9 @@ function renderEmployeeTableView() {
                         </span>
                     </div>
                 </td>
-                <td style="padding: 12px 10px; border: 1px solid #dee2e6; text-align: center;">
-                    <span style="color: ${statusColor}; font-weight: 600; font-size: 12px;">
+                <td style="padding: 12px 10px 12px 20px; border: 1px solid #dee2e6; text-align: left;">
+                    <span style="color: ${statusColor}; font-weight: 600; font-size: 10px; cursor: help; border-bottom: 1px dotted ${statusColor};"
+                          title="${statusTooltip}">
                         ${statusIcon} ${status}
                     </span>
                 </td>
