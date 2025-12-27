@@ -14032,29 +14032,9 @@ function renderEmployeeComparisonReport() {
     const modeLabel = comparisonMode === 'cross-shop' ? '🌐 Cross-Shop Analysis' : '🏪 Same-Shop Analysis';
 
     const summaryHtml = `
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; font-size: 10px;">
-            <div style="background: #34495e; color: #ecf0f1; padding: 6px 10px; border-left: 3px solid #3498db;">
-                <div style="font-weight: 600; font-size: 11px; color: #bdc3c7;">
-                    <span style="color: #3498db;">●</span> ${periodsDisplay} | ${shopsDisplay} | ${uniqueEmployees.size} employees | Mode: ${modeLabel}
-                </div>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                <div style="background: #ecf0f1; border: 1px solid #bdc3c7; padding: 4px 6px; text-align: center;">
-                    <div style="font-size: 8px; color: #7f8c8d; font-weight: 600;">SALES</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #2c3e50;">€${(totalSales/1000).toFixed(0)}k</div>
-                </div>
-                <div style="background: #ecf0f1; border: 1px solid #bdc3c7; padding: 4px 6px; text-align: center;">
-                    <div style="font-size: 8px; color: #7f8c8d; font-weight: 600;">COMM.</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #2c3e50;">€${(totalCommission/1000).toFixed(0)}k</div>
-                </div>
-                <div style="background: #ecf0f1; border: 1px solid #bdc3c7; padding: 4px 6px; text-align: center;">
-                    <div style="font-size: 8px; color: #7f8c8d; font-weight: 600;">TXN</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #2c3e50;">${(totalTransactions/1000).toFixed(1)}k</div>
-                </div>
-                <div style="background: #ecf0f1; border: 1px solid #bdc3c7; padding: 4px 6px; text-align: center;">
-                    <div style="font-size: 8px; color: #7f8c8d; font-weight: 600;">AVG €</div>
-                    <div style="font-size: 11px; font-weight: 600; color: #2c3e50;">€${avgTicket.toFixed(0)}</div>
-                </div>
+        <div style="background: rgba(46, 204, 113, 0.15); color: #000000; padding: 6px 12px; border-left: 3px solid #27ae60; border-radius: 3px;">
+            <div style="font-weight: 600; font-size: 11px;">
+                <span style="color: #27ae60;">●</span> ${periodsDisplay} | ${shopsDisplay} | ${uniqueEmployees.size} employees | Mode: ${modeLabel}
             </div>
         </div>
     `;
