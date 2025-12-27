@@ -2491,18 +2491,18 @@ Dipendente con 3 mesi maternità:
                         </button>
                     </div>
 
-                    <div id="employeeFilterControls" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+                    <div id="employeeFilterControls" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;">
                         <!-- Sales Range -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">💰 Sales (€)</label>
-                            <input type="number" id="empFilterSalesMin" placeholder="Min" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
-                            <input type="number" id="empFilterSalesMax" placeholder="Max" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">💰 Sales</label>
+                            <input type="number" id="empFilterSalesMin" placeholder="Min" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 1px;">
+                            <input type="number" id="empFilterSalesMax" placeholder="Max" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
                         <!-- Growth Rate -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">📈 Trend</label>
-                            <select id="empFilterGrowth" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">📈 Trend</label>
+                            <select id="empFilterGrowth" style="width: 100%; padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
                                 <option value="positive">+</option>
                                 <option value="negative">-</option>
@@ -2512,48 +2512,48 @@ Dipendente con 3 mesi maternità:
                         </div>
 
                         <!-- Avg Ticket -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🎫 Avg Ticket (€)</label>
-                            <input type="number" id="empFilterTicketMin" placeholder="Min" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
-                            <input type="number" id="empFilterTicketMax" placeholder="Max" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">🎫 Ticket</label>
+                            <input type="number" id="empFilterTicketMin" placeholder="Min" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 1px;">
+                            <input type="number" id="empFilterTicketMax" placeholder="Max" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
                         <!-- UPT Range -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🛍️ UPT</label>
-                            <input type="number" id="empFilterUptMin" placeholder="Min" step="0.1" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 2px;">
-                            <input type="number" id="empFilterUptMax" placeholder="Max" step="0.1" style="width: calc(50% - 2px); padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">🛍️ UPT</label>
+                            <input type="number" id="empFilterUptMin" placeholder="Min" step="0.1" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1; margin-right: 1px;">
+                            <input type="number" id="empFilterUptMax" placeholder="Max" step="0.1" style="width: calc(50% - 1px); padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                         </div>
 
                         <!-- Experience Level -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">📚 Experience</label>
-                            <select id="empFilterCohort" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
-                                <option value="all">All Levels</option>
-                                <option value="new-hire">New Hire (<3m)</option>
-                                <option value="associate">Junior (3-12m)</option>
-                                <option value="established">Mid (1-2y)</option>
-                                <option value="specialist">Senior (2-4y)</option>
-                                <option value="senior">Expert (4+y)</option>
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">📚 Exp</label>
+                            <select id="empFilterCohort" style="width: 100%; padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                                <option value="all">All</option>
+                                <option value="new-hire">New</option>
+                                <option value="associate">Jun</option>
+                                <option value="established">Mid</option>
+                                <option value="specialist">Sen</option>
+                                <option value="senior">Exp</option>
                             </select>
                         </div>
 
                         <!-- Rating -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">⭐ Rating</label>
-                            <select id="empFilterRating" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">⭐ Rate</label>
+                            <select id="empFilterRating" style="width: 100%; padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
-                                <option value="a">A - Top</option>
-                                <option value="b">B - Strong</option>
-                                <option value="c">C - Needs Help</option>
-                                <option value="d">D - Critical</option>
+                                <option value="a">A</option>
+                                <option value="b">B</option>
+                                <option value="c">C</option>
+                                <option value="d">D</option>
                             </select>
                         </div>
 
                         <!-- Shop -->
-                        <div style="background: #2c3e50; padding: 5px; border-radius: 2px;">
-                            <label style="font-size: 8px; color: #bdc3c7; display: block; margin-bottom: 2px;">🏪 Shop</label>
-                            <select id="empFilterShop" style="width: 100%; padding: 3px; font-size: 8px; border: 1px solid #7f8c8d; background: #ecf0f1;">
+                        <div style="background: #2c3e50; padding: 4px; border-radius: 2px;">
+                            <label style="font-size: 7px; color: #bdc3c7; display: block; margin-bottom: 2px;">🏪 Shop</label>
+                            <select id="empFilterShop" style="width: 100%; padding: 2px; font-size: 7px; border: 1px solid #7f8c8d; background: #ecf0f1;">
                                 <option value="all">All</option>
                                 <!-- Options populated dynamically -->
                             </select>
@@ -14635,16 +14635,22 @@ function generateNarrativeDashboard(employees, teamMetrics) {
     const dashboardHtml = `
         <div style="background: white; border: 1px solid #bdc3c7; border-radius: 3px; overflow: hidden; margin-bottom: 15px;">
             <!-- Dashboard Header -->
-            <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: #ecf0f1; padding: 10px 15px; border-bottom: 2px solid #3498db;">
-                <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
-                    📊 DASHBOARD INSIGHTS - Analisi Performance Team
+            <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: #ecf0f1; padding: 10px 15px; border-bottom: 2px solid #3498db; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">
+                        📊 DASHBOARD INSIGHTS - Analisi Performance Team
+                    </div>
+                    <div style="font-size: 9px; opacity: 0.8; margin-top: 2px;">
+                        Aggiornato: ${new Date().toLocaleString('it-IT')}
+                    </div>
                 </div>
-                <div style="font-size: 9px; opacity: 0.8; margin-top: 2px;">
-                    Aggiornato: ${new Date().toLocaleString('it-IT')}
-                </div>
+                <button onclick="toggleDashboardInsights()" style="background: transparent; border: 1px solid #7f8c8d; color: #ecf0f1; padding: 3px 10px; font-size: 9px; cursor: pointer; border-radius: 2px;">
+                    <span id="dashboardInsightsToggleIcon">▼</span> Collapse
+                </button>
             </div>
 
             <!-- Three-column layout -->
+            <div id="dashboardInsightsContent">`
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 15px;">
 
                 <!-- COLUMN 1: SITUAZIONE GENERALE -->
@@ -14828,6 +14834,7 @@ function generateNarrativeDashboard(employees, teamMetrics) {
                         `;
                     }).join('')}
                 </div>
+            </div>
             </div>
         </div>
     `;
@@ -16595,6 +16602,20 @@ function toggleEmployeeAdvancedFilters() {
         icon.textContent = '▼';
     } else {
         panel.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
+// Toggle Dashboard Insights
+function toggleDashboardInsights() {
+    const content = document.getElementById('dashboardInsightsContent');
+    const icon = document.getElementById('dashboardInsightsToggleIcon');
+
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        content.style.display = 'none';
         icon.textContent = '▶';
     }
 }
