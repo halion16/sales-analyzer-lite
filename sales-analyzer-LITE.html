@@ -1627,8 +1627,11 @@ REQUIREMENTS:
                 </div>
 
                 <!-- Load Button -->
-                <div style="text-align: center;">
+                <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
                     <button id="loadApiDataBtn" style="background: #27ae60; border: none; color: #ffffff; padding: 8px 20px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px; letter-spacing: 0.3px;">LOAD FROM API</button>
+                    <button id="exportApiDataBtn" onclick="exportRawAPIData()" disabled style="background: #3498db; border: none; color: #ffffff; padding: 8px 20px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 3px; letter-spacing: 0.3px; opacity: 0.5;">
+                        📊 EXPORT TO EXCEL
+                    </button>
                 </div>
 
                 <!-- Status Display -->
@@ -4626,6 +4629,13 @@ Dipendente con 3 mesi maternità:
             loadBtn.disabled = true;
             loadBtn.style.opacity = '0.5';
 
+            // Disable export button during loading
+            const exportBtn = document.getElementById('exportApiDataBtn');
+            if (exportBtn) {
+                exportBtn.disabled = true;
+                exportBtn.style.opacity = '0.5';
+            }
+
             function updateProgress(message, percent) {
                 statusText.textContent = message;
                 progressBar.style.width = percent + '%';
@@ -4634,22 +4644,50 @@ Dipendente con 3 mesi maternità:
             try {
                 const result = await BestStoreAPI.getTransactionData(fromDate, toDate, selectedStores, updateProgress);
 
+                console.log('🔍 API Result:', result);
+                console.log('🔍 Result.success:', result.success);
+                console.log('🔍 Result keys:', Object.keys(result));
+
                 if (result.success) {
                     updateProgress('✓ Data loaded successfully', 100);
 
                     // Parse CSV data using existing function
-                    const records = parseCSV(result.csvData);
-                    rawData = records;
+                    // Note: parseCSV() sets rawData globally, doesn't return it
+                    parseCSV(result.csvData);
+                    console.log('✅ parseCSV completed, rawData length:', rawData.length);
+
+                    // Enable export button
+                    const exportBtn = document.getElementById('exportApiDataBtn');
+                    console.log('🔍 Export button element:', exportBtn);
+                    console.log('📊 Raw data loaded:', rawData ? rawData.length : 0, 'records');
+                    if (exportBtn) {
+                        exportBtn.disabled = false;
+                        exportBtn.style.opacity = '1';
+                        exportBtn.style.cursor = 'pointer';
+                        exportBtn.style.background = '#3498db';  // Force blue color
+                        exportBtn.style.pointerEvents = 'auto';  // Ensure clickable
+                        console.log('✅ Export button enabled!');
+                    } else {
+                        console.error('❌ Export button not found!');
+                    }
 
                     // Update debug info
                     const debugDiv = document.getElementById('debug');
                     debugDiv.innerHTML = `
                         <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 4px; margin-top: 10px;">
-                            <strong style="color: #155724;">✓ API Data Loaded</strong><br>
-                            <span style="font-size: 10px; color: #155724;">
-                                ${records.length} transactions loaded from ${fromDate} to ${toDate || 'today'}<br>
-                                Stores: ${selectedStores.join(', ')}
-                            </span>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #155724;">✓ API Data Loaded</strong><br>
+                                    <span style="font-size: 10px; color: #155724;">
+                                        ${records.length} transactions loaded from ${fromDate} to ${toDate || 'today'}<br>
+                                        Stores: ${selectedStores.join(', ')}
+                                    </span>
+                                </div>
+                                <button onclick="exportRawAPIData()"
+                                        style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                                    📊 Export to Excel
+                                </button>
+                            </div>
                         </div>
                     `;
 
@@ -4696,6 +4734,60 @@ Dipendente con 3 mesi maternità:
                     loadBtn.style.opacity = '1';
                     progressBar.style.background = '#27ae60';
                 }, 3000);
+            }
+        }
+
+        // Export raw API data to Excel
+        function exportRawAPIData() {
+            if (!rawData || rawData.length === 0) {
+                alert('No data loaded. Please load data from API first.');
+                return;
+            }
+
+            try {
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+
+                // Prepare data for export
+                const exportData = [];
+
+                // Add header row
+                const headers = Object.keys(rawData[0]);
+                exportData.push(headers);
+
+                // Add data rows
+                rawData.forEach(record => {
+                    const row = headers.map(header => record[header] || '');
+                    exportData.push(row);
+                });
+
+                // Create worksheet
+                const ws = XLSX.utils.aoa_to_sheet(exportData);
+
+                // Auto-size columns
+                const colWidths = headers.map(header => ({
+                    wch: Math.max(
+                        header.length,
+                        ...rawData.slice(0, 100).map(row => String(row[header] || '').length)
+                    ) + 2
+                }));
+                ws['!cols'] = colWidths;
+
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'API Raw Data');
+
+                // Generate filename with date range
+                const fromDate = document.getElementById('apiFromDate').value || 'unknown';
+                const toDate = document.getElementById('apiToDate').value || fromDate;
+                const filename = `BestStore_API_Data_${fromDate}_to_${toDate}.xlsx`;
+
+                // Save file
+                XLSX.writeFile(wb, filename);
+
+                console.log(`✓ Exported ${rawData.length} records to ${filename}`);
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error exporting data: ' + error.message);
             }
         }
 
@@ -5814,6 +5906,11 @@ Dipendente con 3 mesi maternità:
         // Update seasonality status display
         function updateSeasonalityStatus() {
             const statusDiv = document.getElementById('seasonalityStatus');
+            if (!statusDiv) {
+                console.log('ℹ️ seasonalityStatus element not found (not needed on this page)');
+                return; // Element doesn't exist, skip update
+            }
+
             const selectedMode = document.querySelector('input[name="seasonalityMode"]:checked')?.value || 'fixed';
 
             if (selectedMode === 'fixed') {
@@ -6444,10 +6541,35 @@ Dipendente con 3 mesi maternità:
                 calculateDynamicSeasonality(rawData);
                 updateSeasonalityStatus();
 
-                // Auto-switch to shops tab first
-                showTab('shops');
-                document.querySelector('.tab:nth-child(2)').classList.add('active');
-                document.querySelector('.tab:nth-child(1)').classList.remove('active');
+                console.log('🎯 [DEBUG] Before showTab, about to switch tabs');
+
+                // Auto-switch to shops tab first (if tabs exist)
+                try {
+                    showTab('shops');
+                    const tab2 = document.querySelector('.tab:nth-child(2)');
+                    const tab1 = document.querySelector('.tab:nth-child(1)');
+                    if (tab2) tab2.classList.add('active');
+                    if (tab1) tab1.classList.remove('active');
+                } catch (error) {
+                    console.log('ℹ️ Tab switching not available on this page');
+                }
+
+                console.log('🎯 [DEBUG] Reached end of parseCSV, about to enable export button');
+
+                // Enable export button after data is loaded
+                const exportBtn = document.getElementById('exportApiDataBtn');
+                console.log('🔍 [parseCSV] Export button element:', exportBtn);
+                console.log('📊 [parseCSV] Raw data loaded:', rawData ? rawData.length : 0, 'records');
+                if (exportBtn) {
+                    exportBtn.disabled = false;
+                    exportBtn.style.opacity = '1';
+                    exportBtn.style.cursor = 'pointer';
+                    exportBtn.style.background = '#3498db';  // Force blue color
+                    exportBtn.style.pointerEvents = 'auto';  // Ensure clickable
+                    console.log('✅ [parseCSV] Export button enabled!');
+                } else {
+                    console.error('❌ [parseCSV] Export button not found!');
+                }
             }
         }
 
